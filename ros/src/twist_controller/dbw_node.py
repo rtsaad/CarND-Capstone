@@ -4,6 +4,7 @@ import rospy
 from std_msgs.msg import Bool
 from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
 from geometry_msgs.msg import TwistStamped
+from styx_msgs.msg import Lane, Waypoint
 import math
 
 from twist_controller import Controller
@@ -53,6 +54,9 @@ class DBWNode(object):
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',
                                          BrakeCmd, queue_size=1)
 
+        ##
+        rospy.Subscriber('/final_waypoints', Lane, self.waypoints_cb)
+
         # TODO: Create `TwistController` object
         # self.controller = TwistController(<Arguments you wish to provide>)
 
@@ -91,6 +95,12 @@ class DBWNode(object):
         bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
         bcmd.pedal_cmd = brake
         self.brake_pub.publish(bcmd)
+
+    def waypoints_cb(self, msg):
+        # TODO: Change it later, Simple implementation only to test the partial waypoint node.
+        first_w = msg.waypoints[0]
+        rospy.loginfo('Received waypoints of size {}'.format(len(msg.waypoints)))
+        self.publish(1, 0, 0)
 
 
 if __name__ == '__main__':
