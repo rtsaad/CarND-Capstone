@@ -103,7 +103,7 @@ class DBWNode(object):
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(10) # 50Hz
+        rate = rospy.Rate(1) # 50Hz
         while not rospy.is_shutdown():
             # TODO: Get predicted throttle, brake, and steering using `twist_controller`
             # You should only publish the control commands if dbw is enabled
@@ -126,6 +126,10 @@ class DBWNode(object):
             if self.twist is None:
                 #rate.sleep()
                 continue
+            if self.current_pose is None:
+                continue
+            if self.velocity is None:
+                continue
 
             #num_of_waypoints = len(self.waypoints)
             #rospy.logwarn(self.current_pose)
@@ -138,29 +142,30 @@ class DBWNode(object):
             # Find: velocity, target velocity, ...
             v_target = self.twist.linear.x
             v = self.velocity
-
-            #rospy.logwarn(v)
-            #rospy.logwarn(v_target)
+            w_target = self.twist.angular.z
 
             # Control
             cte = 0.0
-            controller_args = {"cte": cte, "dbw_enabled": self.dbw_enabled, "v": v, "v_target": v_target}
+            controller_args = {"cte": cte,
+                               "dbw_enabled": self.dbw_enabled,
+                               "v": v,
+                               "v_target": v_target,
+                               "w_target": w_target}
             throttle, brake, steer = self.controller.control(**controller_args)
 
             # Publish control data to ROS topics
             # Is Manual Driving
 
 
-            rospy.logwarn(v)
-            rospy.logwarn(v_target)
-            rospy.logwarn(throttle)
-            #rospy.logwarn(brake*4)
+            #rospy.logwarn(v)
+            #rospy.logwarn(v_target)
+            #rospy.logwarn(throttle)
+            #rospy.logwarn(brake)
 
-            #if(brake>0):
-            #    brake *= 5.
+
             if self.dbw_enabled:
                 rospy.logwarn("OK")
-                self.publish(throttle,brake, 0.0)
+                self.publish(throttle,brake,steer)
             else:
                 rospy.logwarn("Manual")
 
