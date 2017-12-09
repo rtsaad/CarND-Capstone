@@ -5,19 +5,45 @@ from std_msgs.msg import Bool
 from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
 from geometry_msgs.msg import TwistStamped, PoseStamped
 from styx_msgs.msg import Lane, Waypoint
-import math
+from math import sin, cos
+from tf import transformations
+import numpy as np
 
 from twist_controller import Controller
+
+
+# euler
+def get_euler(pose):
+    """Returns the roll, pitch yaw angles from a Quaternion """
+    return transformations.euler_from_quaternion([pose.orientation.x,
+                                                     pose.orientation.y,
+                                                     pose.orientation.z,
+                                                     pose.orientation.w])
 
 
 # Calculates the cross track error of the car
 def calculate_cte(**kwargs):
     #TODO
-
+    X, Y = [], []
     pose = kwargs.get('curpose')
     wp = kwargs.get('waypoints')
     maxpoints = kwargs.get('maxpoints')
-    return 0.0
+    yaw = get_euler(pose)[2]
+    x0 = pose.position.x
+    y0 = pose.position.y
+
+    # Shift and rotate waypoints
+    for i in range(maxpoints):
+        s_x = wp[i].pose.pose.position.x - x0
+        s_y = wp[i].pose.pose.position.y - y0
+        X.append(s_x* cos(-yaw) - s_y*sin(-yaw))
+        Y.append(s_x* sin(-yaw) + s_y*cos(-yaw))
+
+    #rospy.logwarn(yaw)
+
+    A = np.polyfit(X,Y,2)
+    return np.polyval(A,0.5)
+
 
 
 '''
@@ -103,7 +129,7 @@ class DBWNode(object):
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(1) # 50Hz
+        rate = rospy.Rate(50) # 50Hz
         while not rospy.is_shutdown():
             # TODO: Get predicted throttle, brake, and steering using `twist_controller`
             # You should only publish the control commands if dbw is enabled
@@ -136,16 +162,17 @@ class DBWNode(object):
 
 
             # Calculate cte (to find steer)
-            #cte_args = {"waypoints": self.waypoints, "curpose": self.current_pose, "maxpoints": 10}
-            #cte = calculate_cte(**cte_args)
+            cte_args = {"waypoints": self.waypoints, "curpose": self.current_pose, "maxpoints": 10}
+            cte = calculate_cte(**cte_args)
 
+            #rospy.logwarn(cte)
             # Find: velocity, target velocity, ...
             v_target = self.twist.linear.x
             v = self.velocity
             w_target = self.twist.angular.z
 
             # Control
-            cte = 0.0
+
             controller_args = {"cte": cte,
                                "dbw_enabled": self.dbw_enabled,
                                "v": v,
@@ -164,10 +191,10 @@ class DBWNode(object):
 
 
             if self.dbw_enabled:
-                rospy.logwarn("OK")
+                #rospy.logwarn("OK")
                 self.publish(throttle,brake,steer)
-            else:
-                rospy.logwarn("Manual")
+            #else:
+                #rospy.logwarn("Manual")
 
 
             rate.sleep()

@@ -28,8 +28,13 @@ class Controller(object):
         self.max_lat_accel = kwargs.get('max_lat_accel')
 
         # PID controllers
-        #self.pid_steer = pid.PID(kp=0.5, ki=0.025, kd=0.25,
-        #                     mn = -max_abs_angle, mx = max_abs_angle)
+        # create lowpass filters
+        self.steer_filter = lowpass.LowPassFilter(tau=0.0, ts=1.0)
+
+        self.pid_steer = pid.PID(kp=1., ki=0.025, kd=0.25,
+                             mn = -max_abs_angle, mx = max_abs_angle)
+
+
 
         self.yaw_controller = yaw_controller.YawController(
             self.wheel_base, self.steer_ratio, 1.0,
@@ -62,9 +67,9 @@ class Controller(object):
         cur_time = rospy.get_time()
         dt = cur_time - self.last_time  + 1e-6
         self.last_time = cur_time
-        #cte = kwargs.get('cte')
+        cte = kwargs.get('cte')
         # use a pid controller to find the most suited steering angle
-        #steer = self.pid_steer.step(cte,dt)
+        steer = self.pid_steer.step(cte,dt)
 
         # Speed Controller
         v_err = v_target - v
@@ -94,15 +99,18 @@ class Controller(object):
         v1 = v_target
         if v1< 0.0:
             v1 = 0.0
-        steer = self.yaw_controller.get_steering(
-            v1, w_target, v)
+        yaw_steer = self.yaw_controller.get_steering(
+           v1, w_target, v)
+
+        steer = 0. #just to see yaw steer effects
+        steer += yaw_steer
 
         rospy.logwarn("steer:")
         rospy.logwarn(steer)
-        rospy.logwarn("T:")
-        rospy.logwarn(throttle)
-        rospy.logwarn("brake:")
-        rospy.logwarn(brake)
+        #rospy.logwarn("T:")
+        #rospy.logwarn(throttle)
+        #rospy.logwarn("brake:")
+        #rospy.logwarn(brake)
 
 
         return throttle, brake, steer
