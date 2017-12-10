@@ -10,6 +10,7 @@ from light_classification.tl_classifier import TLClassifier
 import tf
 import cv2
 import yaml
+import math
 
 STATE_COUNT_THRESHOLD = 3
 
@@ -54,11 +55,14 @@ class TLDetector(object):
     def pose_cb(self, msg):
         self.pose = msg
 
-    def waypoints_cb(self, waypoints):
-        self.waypoints = waypoints
+    def waypoints_cb(self, msg):
+        # Save waypoints
+        self.waypoints = msg.waypoints
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
+        rospy.loginfo("Traffic Lights $$$$$$$$$$$$$$$$$")
+        rospy.loginfo(self.lights)
 
     def image_cb(self, msg):
         """Identifies red lights in the incoming camera image and publishes the index
@@ -92,7 +96,9 @@ class TLDetector(object):
 
     def get_closest_waypoint(self, pose):
         """Identifies the closest path waypoint to the given position
-            https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
+           ## https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
+           ## I believe this algorithm is not necessary here because it finds the closest pair of point that belongs to a set (both points are unknown). 
+           ## For this case, we have to find the closest point from the set (waypoints) to the given pose.
         Args:
             pose (Pose): position to match a waypoint to
 
@@ -100,8 +106,25 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-        #TODO implement
-        return 0
+
+        if self.waypoints is None:
+            # Waypoints not loaded yet, nothing to publish, ignore
+            return 0
+        
+        i = 0
+        index = 0
+        index_min = 1000000
+        a = (pose.position.x, pose.position.y, pose.position.z)
+        dl = lambda a, b: math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2  + (a[2]-b[2])**2)
+        # O(n) execution
+        for w in self.waypoints:
+            b = (w.pose.pose.position.x, w.pose.pose.position.y, w.pose.pose.position.z)
+            dist = dl(a,b)
+            if dist < index_min:
+                index = i
+                index_min = dist
+            i += 1
+        return index
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
