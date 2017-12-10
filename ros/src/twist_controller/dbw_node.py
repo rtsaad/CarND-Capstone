@@ -100,7 +100,7 @@ class DBWNode(object):
         # TODO: Change it later, Simple implementation only to test the partial waypoint node.
         first_w = msg.waypoints[0]
         rospy.loginfo('Received waypoints of size {}'.format(len(msg.waypoints)))
-        self.publish(1, 0, 0)
+        self.publish(0.5, 0, 0)
 
 
 if __name__ == '__main__':

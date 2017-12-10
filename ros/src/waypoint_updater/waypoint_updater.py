@@ -92,11 +92,11 @@ class WaypointUpdater(object):
         # Compute distance to stop
         distance_full_stop = self.distance(self.waypoints, self.current_waypoint_index, stop_waypoint_index)
         # Compute linear slowdown
-        current_speed = self.get_waypoint_velocity(self.current_waypoint_index)
+        current_speed = self.get_waypoint_velocity(self.waypoints[self.current_waypoint_index])
         previous_speed = current_speed
         linear_slowdown = current_speed/distance_full_stop
         for i in range(self.current_waypoint_index+1, stop_waypoint_index):
-            short_distance = distance(self.waypoints, i, i+1)
+            short_distance = self.distance(self.waypoints, i, i+1)
             velocity = current_speed - (linear_slowdown*short_distance)
             if abs(previous_speed - velocity) > MAX_BRAKE:
                 velocity = current_speed - MAX_BRAKE
