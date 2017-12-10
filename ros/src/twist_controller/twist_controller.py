@@ -31,7 +31,7 @@ class Controller(object):
         # create lowpass filters
         self.steer_filter = lowpass.LowPassFilter(tau=0.0, ts=1.0)
 
-        self.pid_steer = pid.PID(kp=1., ki=0.025, kd=0.25,
+        self.pid_steer = pid.PID(kp=0.3, ki=0.0, kd=0.35,
                              mn = -max_abs_angle, mx = max_abs_angle)
 
 
@@ -102,8 +102,9 @@ class Controller(object):
         yaw_steer = self.yaw_controller.get_steering(
            v1, w_target, v)
 
-        steer = 0. #just to see yaw steer effects
+        #steer = 0. #just to see yaw steer effects
         steer += yaw_steer
+
 
         rospy.logwarn("steer:")
         rospy.logwarn(steer)
