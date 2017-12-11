@@ -90,6 +90,12 @@ class TLDetector(object):
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
 
+
+    def euclidean_distance(self, position1, position2):
+        x = position1.x - position2.x
+        y = position1.y - position2.y
+        return math.sqrt((x*x) + (y*y))
+
     def get_closest_waypoint(self, pose):
         """Identifies the closest path waypoint to the given position
             https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
@@ -100,8 +106,16 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-        #TODO implement
-        return 0
+        closest_distance = float('inf')
+        closest_index = 0
+        
+        for i, waypoint ins enumerate(self.waypoints.waypoints):
+            distance = self.euclidean_distance(pose.position, waypoint.pose.pose.position)
+            if distance < closest_distance:
+                closest_distance = distance
+                closest_index = i
+    
+        return closest_index
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
