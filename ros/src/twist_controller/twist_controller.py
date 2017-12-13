@@ -29,10 +29,11 @@ class Controller(object):
 
         # PID controllers
         # create lowpass filters
-        self.steer_filter = lowpass.LowPassFilter(tau=0.0, ts=1.0)
+        #self.steer_filter = lowpass.LowPassFilter(tau=0.0, ts=1.0)
 
-        self.pid_steer = pid.PID(kp=0.3, ki=0.0, kd=0.35,
-                             mn = -max_abs_angle, mx = max_abs_angle)
+        #self.pid_steer = pid.PID(kp=0.0, ki=0.0, kd=0.0,
+        #                     mn = -max_abs_angle, mx = max_abs_angle)
+
 
 
 
@@ -69,7 +70,8 @@ class Controller(object):
         self.last_time = cur_time
         cte = kwargs.get('cte')
         # use a pid controller to find the most suited steering angle
-        steer = self.pid_steer.step(cte,dt)
+        #steer = self.pid_steer.step(cte,dt)
+        #steer = self.steer_filter.filt(steer)
 
         # Speed Controller
         v_err = v_target - v
@@ -102,8 +104,11 @@ class Controller(object):
         yaw_steer = self.yaw_controller.get_steering(
            v1, w_target, v)
 
-        #steer = 0. #just to see yaw steer effects
+
+
+        steer = 0. #just to see yaw steer effects
         steer += yaw_steer
+        steer = self.steer_filter.filt(steer)
 
 
         rospy.logwarn("steer:")
