@@ -31,6 +31,9 @@ def calculate_cte(**kwargs):
     yaw = get_euler(pose)[2]
     x0 = pose.position.x
     y0 = pose.position.y
+    velocity = kwargs.get('velocity')
+
+    #rospy.logwarn("Waypoints")
 
     # Shift and rotate waypoints
     for i in range(maxpoints):
@@ -38,11 +41,17 @@ def calculate_cte(**kwargs):
         s_y = wp[i].pose.pose.position.y - y0
         X.append(s_x* cos(-yaw) - s_y*sin(-yaw))
         Y.append(s_x* sin(-yaw) + s_y*cos(-yaw))
+        #rospy.logwarn("X")
+        #rospy.logwarn(X)
+        #rospy.logwarn("Y")
+        #rospy.logwarn(Y)
 
-    #rospy.logwarn(yaw)
 
+    rospy.logwarn(velocity)
+    #p_x = velocity*0.1
     A = np.polyfit(X,Y,2)
     return np.polyval(A,0.5)
+    #return np.polyval(A,p_x) #Considering a latency of 0.1
 
 
 
@@ -162,7 +171,7 @@ class DBWNode(object):
 
 
             # Calculate cte (to find steer)
-            cte_args = {"waypoints": self.waypoints, "curpose": self.current_pose, "maxpoints": 10}
+            cte_args = {"waypoints": self.waypoints, "curpose": self.current_pose, "maxpoints": 10, "speed": self.velocity}
             cte = calculate_cte(**cte_args)
 
             #rospy.logwarn(cte)
@@ -188,8 +197,10 @@ class DBWNode(object):
             #rospy.logwarn(v_target)
             #rospy.logwarn(throttle)
             #rospy.logwarn(brake)
-
-
+            rospy.loginfo("CTE: %s", cte)
+            rospy.loginfo("Throttle: %s",throttle)
+            rospy.loginfo("Brake: %s",brake)
+            rospy.loginfo("Steer: %s",steer)
             if self.dbw_enabled:
                 #rospy.logwarn("OK")
                 self.publish(throttle,brake,steer)
@@ -232,6 +243,7 @@ class DBWNode(object):
 
     def velocity_cb(self,msg):
         self.velocity = msg.twist.linear.x
+        #self.velocity = msg
 
     def current_pose_cb(self,msg):
         self.current_pose = msg.pose
