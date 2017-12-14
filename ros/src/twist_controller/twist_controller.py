@@ -7,6 +7,37 @@ GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
 
 
+# steer pid parameter
+S_KP = 0.10
+S_KI = 0.00
+S_KD = 0.25
+
+# velocity pid parameters
+V_KP = 15.0
+V_KI = 0.01
+V_KD = 0.02
+
+
+ARBITRARY_LAG = 0.5
+
+# some flags
+use_velocity_pid_only = False
+use_velocity_corrective_pid = True
+use_steering_pid = False
+use_4times_brake = True
+
+
+if use_velocity_corrective_pid:
+    use_velocity_pid_only = False
+
+if not use_velocity_pid_only and not use_velocity_corrective_pid:
+    use_model_velocity_only = True
+else:
+    use_model_velocity_only = False
+
+
+
+
 class Controller(object):
     def __init__(self, *args, **kwargs):
         # TODO: Implement
@@ -28,12 +59,16 @@ class Controller(object):
         self.max_lat_accel = kwargs.get('max_lat_accel')
 
         # PID controllers
-        # create lowpass filters
-        #self.steer_filter = lowpass.LowPassFilter(tau=0.0, ts=1.0)
+        if use_steering_pid:
+            # create lowpass filters
+            self.steer_filter = lowpass.LowPassFilter(tau=0.0, ts=1.0)
 
-        #self.pid_steer = pid.PID(kp=0.0, ki=0.0, kd=0.0,
-        #                     mn = -max_abs_angle, mx = max_abs_angle)
+            self.pid_steer = pid.PID(kp= S_KP, ki= S_KI, kd= S_KD,
+                                 mn = -max_abs_angle, mx = max_abs_angle)
 
+
+        if not use_model_velocity_only:
+            self.pid_velocity = pid.PID(kp = V_KP, ki = V_KI, kd = V_KD)
 
 
 
@@ -57,59 +92,54 @@ class Controller(object):
         dbw_enabled = kwargs.get('dbw_enabled')
         v = kwargs.get('v')
         v_target = kwargs.get('v_target')
+        w = kwargs.get('w')
         w_target = kwargs.get('w_target')
 
         if(not dbw_enabled):
-            #self.pid_steer.reset()
-            #self.pid_throttle.reset()
+            if use_steering_pid:
+                self.pid_steer.reset()
+
+            if not use_model_velocity_only:
+                self.pid_throttle.reset()
+
             return 0.,0.,0.
 
         # find the time duration and a new timestamp
         cur_time = rospy.get_time()
         dt = cur_time - self.last_time  + 1e-6
         self.last_time = cur_time
-        cte = kwargs.get('cte')
-        # use a pid controller to find the most suited steering angle
-        #steer = self.pid_steer.step(cte,dt)
-        #steer = self.steer_filter.filt(steer)
 
-        # Speed Controller
+
+        if use_steering_pid:
+            cte = kwargs.get('cte')
+            # this is a quite laggy environment so it's supposed to be corrected by another PID controller
+            # as we have some model in yaw controller, we can just sum this corrective_steer after
+            corrective_steer = self.pid_steer.step(cte, ARBITRARY_LAG)
+            corrective_steer = self.steer_filter.filt(corrective_steer)
+        else:
+            # will assume no lag
+            corrective_steer = 0.
+
+
+        # Speed Controller velocity error
         v_err = v_target - v
 
-        # v = v0 + at
-        # (v-v0) = a * t
-        # a = d_v/dt
-        a = v_err/dt
-        #a = v_err/dt
+        if use_model_velocity_only:
+            T = self.velocity_model(v_err,dt)
+        elif use_velocity_pid_only:
+            T = self.pid_velocity.step(v_err,dt)
+        elif use_velocity_corrective_pid:
+            T = self.pid_velocity.step(v_err,ARBITRARY_LAG)
+            T += self.velocity_model(v_err,dt)
 
-        # acc limits to avoid jerk
-        a =  min(self.accel_limit, a) if a >=0. else max(self.decel_limit,a)
 
-        if abs(a)<self.brake_deadband:
-            throttle, brake = 0. , 0.
-
-        # Torque corresponds to throttle so...
-        # lets find it
-        # T = m . a . R
-        # remember throttle comes in relative means
-        T = self.vehicle_mass * a * self.wheel_radius
+        # Throttle and Brake
         throttle = T/self.max_acc_torque if T > 0. else 0.
         brake = abs(T) if T <= 0. else 0.
 
 
-        #v1 = v+ a* dt
-        v1 = v_target
-        if v1< 0.0:
-            v1 = 0.0
-        yaw_steer = self.yaw_controller.get_steering(
-           v1, w_target, v)
-
-
-
-        steer = 0. #just to see yaw steer effects
-        steer += yaw_steer
-        steer = self.steer_filter.filt(steer)
-
+        yaw_steer = self.yaw_controller.get_steering( v_target, w_target, v)
+        steer = yaw_steer + corrective_steer
 
         rospy.logwarn("steer:")
         rospy.logwarn(steer)
@@ -118,5 +148,32 @@ class Controller(object):
         #rospy.logwarn("brake:")
         #rospy.logwarn(brake)
 
+        if use_4times_brake:
+            brake *=4
+
 
         return throttle, brake, steer
+
+
+
+    def velocity_model(self, velocity_err, time):
+        '''
+        Calculates acceleration from physics formula and the the Torque
+        :param velocity_err:
+        :param time:
+        :return: a Torque value (T)
+        '''
+        a = velocity_err/time
+        # acc limits to avoid jerk
+        a =  min(self.accel_limit, a) if a >=0. else max(self.decel_limit,a)
+
+        if abs(a)<self.brake_deadband:
+            return 0.0
+
+        # Torque corresponds to throttle so...
+        # lets find it
+        # T = m . a . R
+        # remember throttle comes in relative means
+        T = self.vehicle_mass * a * self.wheel_radius
+
+        return T

@@ -41,7 +41,7 @@ def calculate_cte(**kwargs):
 
     #rospy.logwarn(yaw)
 
-    A = np.polyfit(X,Y,2)
+    A = np.polyfit(X,Y,3)
     return np.polyval(A,0.5)
 
 
@@ -120,6 +120,7 @@ class DBWNode(object):
         self.waypoints = None
         self.twist = None
         self.velocity = None
+        self.w = None
         self.current_pose = None
         rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb, queue_size=1)
         rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cb, queue_size=1)
@@ -170,6 +171,7 @@ class DBWNode(object):
             v_target = self.twist.linear.x
             v = self.velocity
             w_target = self.twist.angular.z
+            w = self.w
 
             # Control
 
@@ -177,7 +179,8 @@ class DBWNode(object):
                                "dbw_enabled": self.dbw_enabled,
                                "v": v,
                                "v_target": v_target,
-                               "w_target": w_target}
+                               "w_target": w_target,
+                               "w": w}
             throttle, brake, steer = self.controller.control(**controller_args)
 
             # Publish control data to ROS topics
@@ -232,6 +235,7 @@ class DBWNode(object):
 
     def velocity_cb(self,msg):
         self.velocity = msg.twist.linear.x
+        self.w = msg.twist.angular.z
 
     def current_pose_cb(self,msg):
         self.current_pose = msg.pose

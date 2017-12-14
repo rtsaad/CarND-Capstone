@@ -1,18 +1,17 @@
 #!/usr/bin/env python
 
-import socketio
 import eventlet
+eventlet.monkey_patch(socket=True, select=True, time=True)
+
 import eventlet.wsgi
+import socketio
 import time
 from flask import Flask, render_template
 
 from bridge import Bridge
 from conf import conf
 
-eventlet.monkey_patch()
-
-sio = socketio.Server(async_mode='eventlet')
-#sio = socketio.Server()
+sio = socketio.Server()
 app = Flask(__name__)
 msgs = []
 
@@ -66,4 +65,4 @@ if __name__ == '__main__':
     app = socketio.Middleware(sio, app)
 
     # deploy as an eventlet WSGI server
-    eventlet.wsgi.server(eventlet.listen(('', 4567)), app)
+eventlet.wsgi.server(eventlet.listen(('', 4567)), app)
