@@ -199,7 +199,7 @@ class TLDetector(object):
                     light_wp =  self.get_closest_waypoint(pose)
                     light = light_wp
                     
-         if light:
+            if light:
             #state = self.get_light_state(light)
             # TODO: remove later, only for testing
             state = self.lights[light_position].state            

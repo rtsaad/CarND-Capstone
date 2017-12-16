@@ -30,7 +30,7 @@ LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this n
 KMPH_TO_MPS = 1000./(60.*60.)
 MAX_BRAKE =  0.25
 MAX_ACC   = 0.025
-MAX_SPEED = 11.1
+MAX_SPEED = 18
 
 class WaypointUpdater(object):
 
