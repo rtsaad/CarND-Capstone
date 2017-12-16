@@ -71,8 +71,6 @@ class TLDetector(object):
 
         """
 
-        rospy.logwarn("NEW IMAGE")
-        
         self.has_image = True
         self.camera_image = msg
         light_wp, state = self.process_traffic_lights()
@@ -128,14 +126,14 @@ class TLDetector(object):
         return index
 
     def get_closest_point(self, list_points, point):
-        """ Get the same closet waypoint but accepts list of points instead of waypoints msg type.       
+        """ The same as closet_waypoint but accepts list of points instead of waypoints msg type.       
         """
         
         if len(list_points) < 2:
             return 0
         
         i = 0
-        index = 0
+        index = -1
         index_min = 1000000
         a = (point[0], point[1])
         dl = lambda a, b: math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2)
@@ -190,16 +188,18 @@ class TLDetector(object):
             list_lights = [[l.pose.pose.position.x, l.pose.pose.position.y] for l in self.lights]
             light_position = self.get_closest_point(list_lights, [self.pose.pose.position.x,self.pose.pose.position.y])
 
-            # get closest stop position
-            stop_position = self.get_closest_point(stop_line_positions, list_lights[light_position])
-            pose = Pose()
-            pose.position.x = stop_line_positions[stop_position][0]
-            pose.position.y = stop_line_positions[stop_position][1]
-        
-            light_wp =  self.get_closest_waypoint(pose)
-            light = light_wp
-
-        if light:
+            if light_position != -1:
+                # get closest stop position
+                stop_position = self.get_closest_point(stop_line_positions, list_lights[light_position])
+                if stop_position != -1:
+                    pose = Pose()
+                    pose.position.x = stop_line_positions[stop_position][0]
+                    pose.position.y = stop_line_positions[stop_position][1]
+                    
+                    light_wp =  self.get_closest_waypoint(pose)
+                    light = light_wp
+                    
+         if light:
             #state = self.get_light_state(light)
             # TODO: remove later, only for testing
             state = self.lights[light_position].state            

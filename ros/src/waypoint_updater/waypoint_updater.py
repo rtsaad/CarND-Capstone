@@ -76,7 +76,7 @@ class WaypointUpdater(object):
             if self.waypoints is None or self.current_waypoint is None:
                 #rate.sleep()
                 continue
-
+            # Publish waypoints ahead at every new pose
             self.waypoints_publish()
 
             rate.sleep()
@@ -87,14 +87,15 @@ class WaypointUpdater(object):
     def pose_cb(self, msg):
         # Save current position
         self.current_waypoint = msg
-        # Publish waypoints ahead at every new pose
-        self.waypoints_publish()
-        
 
     def waypoints_cb(self, msg):
         # Load waypoints
-        self.waypoints = msg.waypoints
         self.original_waypoints = msg.waypoints
+        waypoints = msg.waypoints
+        # update max speed
+        for i in range(len(waypoints)):
+            self.set_waypoint_velocity(waypoints, i, MAX_SPEED)
+        self.waypoints = waypoints     
         rospy.logwarn('Waypoints loaded successfully ({})'.format(len(self.waypoints)))
         
 
@@ -104,15 +105,12 @@ class WaypointUpdater(object):
         # Set speed for waypoints before red lights and stop points.
         # Recover waypoint stop position
 
-        rospy.logwarn("Light ")
-
         stop_waypoint_index = msg.data
 
         # Check if its a new index point        
         if self.last_stop_index ==  stop_waypoint_index:            
             return
         
-        self.last_stop_index =  stop_waypoint_index
         should_brake = True
 
         if self.current_waypoint_index is None:
@@ -122,28 +120,44 @@ class WaypointUpdater(object):
         if stop_waypoint_index == -1:
             # No Red light ahead, recover original waypoitns
             # Accelerate
-            stop_waypoint_index =  self.current_waypoint_index + 30
-            should_brake = False            
+            stop_waypoint_index =  self.current_waypoint_index + LOOKAHEAD_WPS
+            if stop_waypoint_index > len(self.waypoints):
+                stop_waypoint_index = len(self.waypoints)
+            should_brake = False
+            distance_full = 99
             rospy.logwarn("Accelerate Car")
-        
-        # Compute distance to stop
-        distance_full = self.distance(self.waypoints, self.current_waypoint_index, stop_waypoint_index-1)        
-        if  distance_full == 0 or distance_full > 80:
+        else:
+            # Compute distance to stop
+            distance_full = self.distance(self.waypoints, self.current_waypoint_index, stop_waypoint_index-1)        
+   
+        if  distance_full > 100:
             #ignore
-            rospy.logwarn("Ignore Light")
+            rospy.logwarn("Ignore Light Distance")
             return
+
+        # Set the number of slow (or accelerate) steps 
+        steps = float(int(distance_full/10))
+        if steps == 0:
+            steps = 1
+
+        if distance_full < 30:
+            # Minimum number of steps
+            steps = 4
+            
+        self.last_stop_index =  stop_waypoint_index
         
         # Compute linear acceleration/slowdown
         current_speed = self.get_waypoint_velocity(self.waypoints[self.current_waypoint_index])
 
-        if not should_brake and current_speed >= MAX_SPEED:
+        if not should_brake and current_speed >= MAX_SPEED:            
             # Ignore, no red lights and speed is already high
+            rospy.logwarn("Ignore Light Speed")
             return        
-        # Step slow down or acceleration (4 steps)
-        linear_acceleration = current_speed/4
+        # Step slow down or acceleration 
+        linear_acceleration = current_speed/steps
         if not should_brake:
-            linear_acceleration = MAX_SPEED/4
-        distance_divider = (distance_full/4)
+            linear_acceleration = MAX_SPEED/steps
+        distance_divider = (distance_full/steps)
         
         # Update waypoints
         for i in range(self.current_waypoint_index, stop_waypoint_index+1):
@@ -162,13 +176,11 @@ class WaypointUpdater(object):
                 velocity = current_speed + diff_velocity
                 if velocity > MAX_SPEED:
                     velocity = MAX_SPEED
-            #rospy.logwarn("Set speed {} {} {} {} {}".format(i, velocity, multi, linear_acceleration, short_distance))
+            rospy.logwarn("Set speed {} {} {} {} {}".format(i, velocity, multi, linear_acceleration, short_distance))
             self.set_waypoint_velocity(self.waypoints, i, velocity)
 
         # Force to Publish new waypoints
-        self.waypoints_changed = True
-        #rospy.logwarn("Changed Waypoint")
-        self.waypoints_publish()
+        self.waypoints_changed = True        
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
@@ -192,18 +204,16 @@ class WaypointUpdater(object):
             # Did not move, ignore and publish nothing
             return
         
-        #check direction
+        # Check if index point is in front of the car
         mapp = [self.waypoints[index].pose.pose.position.x, self.waypoints[index].pose.pose.position.y, self.waypoints[index].pose.pose.position.z]
         point = [self.current_waypoint.pose.position.x, self.current_waypoint.pose.position.y, self.current_waypoint.pose.position.z]
-
-        heading = math.atan2((mapp[1] - point[1]), (mapp[0] - point[0]))
+        
         theta = tf.transformations.euler_from_quaternion([self.current_waypoint.pose.orientation.x,
                                                          self.current_waypoint.pose.orientation.y,
                                                          self.current_waypoint.pose.orientation.z,
                                                          self.current_waypoint.pose.orientation.w])[2]
 
         
-
         index_end = index+LOOKAHEAD_WPS
         if index_end > len(self.waypoints):
             index_end = len(self.waypoints)
@@ -217,8 +227,11 @@ class WaypointUpdater(object):
             Y.append(s_x* math.sin(-theta) + s_y*math.cos(-theta))
 
             
-        if X[0] < 0:
-            index += 1        
+        if X[0] < 0 or Y[0] < 0:
+            index += 1
+
+        # Check orientation
+        heading = math.atan2((mapp[1] - point[1]), (mapp[0] - point[0]))
 
         angle = abs(theta - heading)        
 
@@ -227,7 +240,7 @@ class WaypointUpdater(object):
             if index > len(self.waypoints):
                 index = 0
 
-                # Publish N(LOOKAHEAD_WPS) waypoints ahead
+        # Publish N(LOOKAHEAD_WPS) waypoints ahead
         msg_pub = Lane()
         msg_pub.header.frame_id = 'waypoints_ahead'
         msg_pub.header.stamp = rospy.Time.now()
