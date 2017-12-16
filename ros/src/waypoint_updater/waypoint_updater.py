@@ -64,7 +64,22 @@ class WaypointUpdater(object):
         # Load global variables
         self.max_speed = rospy.get_param('/waypoint_loader/velocity') * KMPH_TO_MPS
 
-        rospy.spin()
+        #rospy.spin()
+        self.loop()
+
+
+    def loop(self):
+        rate = rospy.Rate(20) # 50Hz
+        
+        
+        while not rospy.is_shutdown():
+            if self.waypoints is None or self.current_waypoint is None:
+                #rate.sleep()
+                continue
+
+            self.waypoints_publish()
+
+            rate.sleep()
 
 
     ## Message Functions
