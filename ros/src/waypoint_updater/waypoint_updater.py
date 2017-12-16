@@ -212,17 +212,7 @@ class WaypointUpdater(object):
             if index > len(self.waypoints):
                 index = 0
 
-        rospy.logwarn("Angle {} {}".format(angle, X[0]))
-
-        A = np.polyfit(X,Y,3)
-        p = np.poly1d(A)
-        
-        #for i in range(index,index_end):
-        #    cte = p([X[i-index]])[0]
-        #    self.set_waypoint_yaw(self.waypoints, i, cte)
-
-            
-        # Publish N(LOOKAHEAD_WPS) waypoints ahead
+                # Publish N(LOOKAHEAD_WPS) waypoints ahead
         msg_pub = Lane()
         msg_pub.header.frame_id = 'waypoints_ahead'
         msg_pub.header.stamp = rospy.Time.now()
@@ -258,7 +248,7 @@ class WaypointUpdater(object):
         index = 0
         index_min = 100000000.
         a = (x,y,z)        
-        dl = lambda a, b: math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2  + (a[2]-b[2])**2)
+        dl = lambda a, b: math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2)#  + (a[2]-b[2])**2)
         # O(n) execution
         for w in self.waypoints:
             b = (w.pose.pose.position.x, w.pose.pose.position.y, w.pose.pose.position.z)
