@@ -5,7 +5,10 @@ from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 from std_msgs.msg import Int32
 
+import time
 import math
+import tf
+import numpy as np
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -27,13 +30,16 @@ LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this n
 KMPH_TO_MPS = 1000./(60.*60.)
 MAX_BRAKE =  0.25
 MAX_ACC   = 0.025
+MAX_SPEED = 11.1
 
 class WaypointUpdater(object):
 
     waypoints = None
+    waypoints_changed = True
     original_waypoints = None
     current_waypoint = None
     current_waypoint_index = None
+    previous_waypoint_index = None
     final_waypoints_pub = None
     max_speed = None
     
@@ -42,12 +48,10 @@ class WaypointUpdater(object):
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-
-        #Add a subscriber for /traffic_waypoint and /obstacle_waypoint below        
+        
         rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
         # TODO: check if obstacle_waypoint is really necessary. Rostopic did not find this topic
         #rospy.Subscriber('/obstacle_waypoint', unknown message type, self.obstacle_cb)
-
         
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
@@ -55,6 +59,7 @@ class WaypointUpdater(object):
         self.waypoints = None
         self.current_waypoint = None
         self.current_waypoint_index = None
+        self.previous_waypoint_index = None
 
         # Load global variables
         self.max_speed = rospy.get_param('/waypoint_loader/velocity') * KMPH_TO_MPS
@@ -67,45 +72,88 @@ class WaypointUpdater(object):
     def pose_cb(self, msg):
         # Save current position
         self.current_waypoint = msg
-        rospy.loginfo('New position received {}'.format(msg.header.seq))        
         # Publish waypoints ahead at every new pose
-        self.waypoints_publish()        
+        self.waypoints_publish()
+        
 
     def waypoints_cb(self, msg):
         # Load waypoints
         self.waypoints = msg.waypoints
         self.original_waypoints = msg.waypoints
-        rospy.loginfo('Waypoints loaded successfully ({})'.format(len(self.waypoints)))
+        rospy.logwarn('Waypoints loaded successfully ({})'.format(len(self.waypoints)))
         
 
+    last_stop_index = -1
     def traffic_cb(self, msg):
         # Callback for /traffic_waypoint message.        
         # Set speed for waypoints before red lights and stop points.
         # Recover waypoint stop position
+
+        rospy.logwarn("Light ")
+
         stop_waypoint_index = msg.data
+
+        # Check if its a new index point        
+        if self.last_stop_index ==  stop_waypoint_index:            
+            return
+        
+        self.last_stop_index =  stop_waypoint_index
+        should_brake = True
+
+        if self.current_waypoint_index is None:
+            # Ignore
+            return       
         
         if stop_waypoint_index == -1:
             # No Red light ahead, recover original waypoitns
-            self.waypoints = self.original_waypoints
-            return
+            # Accelerate
+            stop_waypoint_index =  self.current_waypoint_index + 30
+            should_brake = False            
+            rospy.logwarn("Accelerate Car")
         
         # Compute distance to stop
-        distance_full_stop = self.distance(self.waypoints, self.current_waypoint_index, stop_waypoint_index)
-        # Compute linear slowdown
-        current_speed = self.get_waypoint_velocity(self.waypoints[self.current_waypoint_index])
-        previous_speed = current_speed
-        linear_slowdown = current_speed/distance_full_stop
-        for i in range(self.current_waypoint_index+1, stop_waypoint_index):
-            short_distance = self.distance(self.waypoints, i, i+1)
-            velocity = current_speed - (linear_slowdown*short_distance)
-            if abs(previous_speed - velocity) > MAX_BRAKE:
-                velocity = current_speed - MAX_BRAKE
-            if velocity < 0:
-                velocity = 0
-            previous_speed = current_speed
-            current_speed = velocity
-            self.set_waypoint_velocity(self.waypoints, i, current_speed)            
+        distance_full = self.distance(self.waypoints, self.current_waypoint_index, stop_waypoint_index-1)        
+        if  distance_full == 0 or distance_full > 80:
+            #ignore
+            rospy.logwarn("Ignore Light")
+            return
         
+        # Compute linear acceleration/slowdown
+        current_speed = self.get_waypoint_velocity(self.waypoints[self.current_waypoint_index])
+
+        if not should_brake and current_speed >= MAX_SPEED:
+            # Ignore, no red lights and speed is already high
+            return        
+        # Step slow down or acceleration (4 steps)
+        linear_acceleration = current_speed/4
+        if not should_brake:
+            linear_acceleration = MAX_SPEED/4
+        distance_divider = (distance_full/4)
+        
+        # Update waypoints
+        for i in range(self.current_waypoint_index, stop_waypoint_index+1):
+            # Compute partial speed until stop
+            velocity = 0
+            short_distance = self.distance(self.waypoints, self.current_waypoint_index, i)
+            multi = int(short_distance/distance_divider)
+            diff_velocity = float(multi + 1) * linear_acceleration             
+            if should_brake:
+                # Braking
+                velocity = current_speed - diff_velocity
+                if velocity < 0:
+                    velocity = 0
+            else:
+                # Accelerating
+                velocity = current_speed + diff_velocity
+                if velocity > MAX_SPEED:
+                    velocity = MAX_SPEED
+            #rospy.logwarn("Set speed {} {} {} {} {}".format(i, velocity, multi, linear_acceleration, short_distance))
+            self.set_waypoint_velocity(self.waypoints, i, velocity)
+
+        # Force to Publish new waypoints
+        self.waypoints_changed = True
+        #rospy.logwarn("Changed Waypoint")
+        self.waypoints_publish()
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
@@ -120,16 +168,68 @@ class WaypointUpdater(object):
         index = self.get_closest_waypoint(self.current_waypoint.pose.position.x,
                                           self.current_waypoint.pose.position.y,
                                           self.current_waypoint.pose.position.z)
-        # Save current waypoint index
+        
+        # Save current waypoint index       
+        self.previous_waypoint_index = self.current_waypoint_index 
         self.current_waypoint_index = index
-        # Publish N(LOOKAHEAD_WPS) waypoints ahead
-        msg_pub = Lane()        
-        msg_pub.header.stamp = rospy.Time(0)
-        msg_pub.header.frame_id = self.current_waypoint.header.frame_id
-        msg_pub.waypoints = self.waypoints[index:(index+LOOKAHEAD_WPS)]
-        rospy.loginfo('Publish new waypoints sarting at index {}'.format(index))
-        self.final_waypoints_pub.publish(msg_pub)
+        # Check if car moved
+        if not self.waypoints_changed and self.current_waypoint_index==self.previous_waypoint_index:
+            # Did not move, ignore and publish nothing
+            return
+        
+        #check direction
+        mapp = [self.waypoints[index].pose.pose.position.x, self.waypoints[index].pose.pose.position.y, self.waypoints[index].pose.pose.position.z]
+        point = [self.current_waypoint.pose.position.x, self.current_waypoint.pose.position.y, self.current_waypoint.pose.position.z]
 
+        heading = math.atan2((mapp[1] - point[1]), (mapp[0] - point[0]))
+        theta = tf.transformations.euler_from_quaternion([self.current_waypoint.pose.orientation.x,
+                                                         self.current_waypoint.pose.orientation.y,
+                                                         self.current_waypoint.pose.orientation.z,
+                                                         self.current_waypoint.pose.orientation.w])[2]
+
+        
+
+        index_end = index+LOOKAHEAD_WPS
+        if index_end > len(self.waypoints):
+            index_end = len(self.waypoints)
+
+        X, Y = [], []
+        for i in range(index,index_end):
+            w = self.waypoints[i]
+            s_x = w.pose.pose.position.x - point[0]
+            s_y = w.pose.pose.position.y - point[1]
+            X.append(s_x* math.cos(-theta) - s_y*math.sin(-theta))
+            Y.append(s_x* math.sin(-theta) + s_y*math.cos(-theta))
+
+            
+        if X[0] < 0:
+            index += 1        
+
+        angle = abs(theta - heading)        
+
+        if angle > math.pi/4:
+            index += 1
+            if index > len(self.waypoints):
+                index = 0
+
+        rospy.logwarn("Angle {} {}".format(angle, X[0]))
+
+        A = np.polyfit(X,Y,3)
+        p = np.poly1d(A)
+        
+        #for i in range(index,index_end):
+        #    cte = p([X[i-index]])[0]
+        #    self.set_waypoint_yaw(self.waypoints, i, cte)
+
+            
+        # Publish N(LOOKAHEAD_WPS) waypoints ahead
+        msg_pub = Lane()
+        msg_pub.header.frame_id = 'waypoints_ahead'
+        msg_pub.header.stamp = rospy.Time.now()
+        msg_pub.waypoints = self.waypoints[index:index_end]
+        
+        self.final_waypoints_pub.publish(msg_pub)
+        self.waypoints_changed = False        
 
     ## Local Helpers
         
@@ -138,6 +238,9 @@ class WaypointUpdater(object):
 
     def set_waypoint_velocity(self, waypoints, waypoint, velocity):
         waypoints[waypoint].twist.twist.linear.x = velocity
+
+    def set_waypoint_yaw(self, waypoints, waypoint, yaw):
+        waypoints[waypoint].twist.twist.angular.z = yaw
 
     def distance(self, waypoints, wp1, wp2):
         # Get distance between two waypoints
@@ -153,8 +256,8 @@ class WaypointUpdater(object):
         #TODO: use an RTREE(Python) to improve performance, not sure how to handle dependencies with ROS
         i = 0
         index = 0
-        index_min = 1000000
-        a = (x,y,z)
+        index_min = 100000000.
+        a = (x,y,z)        
         dl = lambda a, b: math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2  + (a[2]-b[2])**2)
         # O(n) execution
         for w in self.waypoints:
@@ -166,6 +269,13 @@ class WaypointUpdater(object):
             i += 1
         return index
 
+    def compute_cos_angle(self, v1, v2):
+        mag = lambda v: math.sqrt(v[0]**2 + v[1]**2)# + v[2]**2)    
+        inner_prod = v1[0]*v2[0] + v1[1]*v2[1]# + v1[2]*v2[2]
+        denominator = (mag(v1)*mag(v2))
+        if denominator == 0:
+            return 0
+        return (inner_prod)/denominator
 
 if __name__ == '__main__':
     try:

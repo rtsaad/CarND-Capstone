@@ -60,11 +60,9 @@ class TLDetector(object):
         self.waypoints = msg.waypoints
 
     def traffic_cb(self, msg):
-        self.lights = msg.lights
-        #rospy.loginfo("Traffic Lights $$$$$$$$$$$$$$$$$")
-        #rospy.loginfo(self.lights)
+        self.lights = msg.lights        
 
-    def image_cb(self, msg):
+    def image_cb(self, msg):        
         """Identifies red lights in the incoming camera image and publishes the index
             of the waypoint closest to the red light's stop line to /traffic_waypoint
 
@@ -72,6 +70,9 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
 
         """
+
+        rospy.logwarn("NEW IMAGE")
+        
         self.has_image = True
         self.camera_image = msg
         light_wp, state = self.process_traffic_lights()
@@ -88,7 +89,7 @@ class TLDetector(object):
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
-            self.last_wp = light_wp
+            self.last_wp = light_wp            
             self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
@@ -98,7 +99,7 @@ class TLDetector(object):
         """Identifies the closest path waypoint to the given position
            ## https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
            ## I believe this algorithm is not necessary here because it finds the closest pair of point that belongs to a set (both points are unknown). 
-           ## For this case, we have to find the closest point from the set (waypoints) to the given pose.
+           ## For this case, we have to find the closest point from the set (waypoints) to the given pose, we should use a nearest neighbor algorithm or a spatial index.
         Args:
             pose (Pose): position to match a waypoint to
 
@@ -127,6 +128,8 @@ class TLDetector(object):
         return index
 
     def get_closest_point(self, list_points, point):
+        """ Get the same closet waypoint but accepts list of points instead of waypoints msg type.       
+        """
         
         if len(list_points) < 2:
             return 0
@@ -180,7 +183,9 @@ class TLDetector(object):
         # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
         if(self.pose):
+            # find the closest visible traffic light (if one exists)
             car_position = self.get_closest_waypoint(self.pose.pose)
+            
             # get closest light
             list_lights = [[l.pose.pose.position.x, l.pose.pose.position.y] for l in self.lights]
             light_position = self.get_closest_point(list_lights, [self.pose.pose.position.x,self.pose.pose.position.y])
@@ -194,12 +199,10 @@ class TLDetector(object):
             light_wp =  self.get_closest_waypoint(pose)
             light = light_wp
 
-        #TODO find the closest visible traffic light (if one exists)
-
         if light:
             #state = self.get_light_state(light)
             # TODO: remove later, only for testing
-            state = self.lights[light_position].state
+            state = self.lights[light_position].state            
             return light_wp, state
         self.waypoints = None
         return -1, TrafficLight.UNKNOWN
