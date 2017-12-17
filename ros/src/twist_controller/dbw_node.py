@@ -3,11 +3,48 @@
 import rospy
 from std_msgs.msg import Bool
 from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
-from geometry_msgs.msg import TwistStamped
+from geometry_msgs.msg import TwistStamped, PoseStamped
 from styx_msgs.msg import Lane, Waypoint
-import math
+from math import sin, cos
+from tf import transformations
+import numpy as np
 
 from twist_controller import Controller
+
+
+# euler
+def get_euler(pose):
+    """Returns the roll, pitch yaw angles from a Quaternion """
+    return transformations.euler_from_quaternion([pose.orientation.x,
+                                                     pose.orientation.y,
+                                                     pose.orientation.z,
+                                                     pose.orientation.w])
+
+
+# Calculates the cross track error of the car
+def calculate_cte(**kwargs):
+    #TODO
+    X, Y = [], []
+    pose = kwargs.get('curpose')
+    wp = kwargs.get('waypoints')
+    maxpoints = kwargs.get('maxpoints')
+    yaw = get_euler(pose)[2]
+    x0 = pose.position.x
+    y0 = pose.position.y
+
+    # Shift and rotate waypoints
+    for i in range(maxpoints):
+        s_x = wp[i].pose.pose.position.x - x0
+        s_y = wp[i].pose.pose.position.y - y0
+        X.append(s_x* cos(-yaw) - s_y*sin(-yaw))
+        Y.append(s_x* sin(-yaw) + s_y*cos(-yaw))
+
+    #rospy.logwarn(yaw)
+
+    A = np.polyfit(X,Y,3)
+    return np.polyval(A,0.5)
+
+
 
 '''
 You can build this node only after you have built (or partially built) the `waypoint_updater` node.
@@ -46,6 +83,7 @@ class DBWNode(object):
         steer_ratio = rospy.get_param('~steer_ratio', 14.8)
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
+        max_acceleration = rospy.get_param('~max_acceleration', 1.5)
 
         self.steer_pub = rospy.Publisher('/vehicle/steering_cmd',
                                          SteeringCmd, queue_size=1)
@@ -59,8 +97,35 @@ class DBWNode(object):
 
         # TODO: Create `TwistController` object
         # self.controller = TwistController(<Arguments you wish to provide>)
+        kwargs = {
+            "vehicle_mass": vehicle_mass,
+            "fuel_capacity": fuel_capacity,
+            "brake_deadband": brake_deadband,
+            "decel_limit": decel_limit,
+            "accel_limit": accel_limit,
+            "wheel_radius": wheel_radius,
+            "wheel_base": wheel_base,
+            "steer_ratio": steer_ratio,
+            "max_lat_accel": max_lat_accel,
+            "max_steer_angle": max_steer_angle,
+            "max_acceleration": max_acceleration
+        }
+
+        #rospy.logwarn(kwargs)
+        self.controller = Controller(**kwargs)
+
 
         # TODO: Subscribe to all the topics you need to
+        self.dbw_enabled = True
+        self.waypoints = None
+        self.twist = None
+        self.velocity = None
+        self.w = None
+        self.current_pose = None
+        rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb, queue_size=1)
+        rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cb, queue_size=1)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb, queue_size = 1)
+        rospy.Subscriber('/current_pose', PoseStamped, self.current_pose_cb, queue_size=1)
 
         self.loop()
 
@@ -76,6 +141,65 @@ class DBWNode(object):
             #                                                     <any other argument you need>)
             # if <dbw is enabled>:
             #   self.publish(throttle, brake, steer)
+
+            #rospy.logwarn(self.dbw_enabled)
+
+            # If node isnt able to receive waypoints
+            if self.waypoints is None:
+                #rate.sleep()
+                continue
+
+            # If node isnt able to receive twist
+            if self.twist is None:
+                #rate.sleep()
+                continue
+            if self.current_pose is None:
+                continue
+            if self.velocity is None:
+                continue
+
+            #num_of_waypoints = len(self.waypoints)
+            #rospy.logwarn(self.current_pose)
+
+
+            # Calculate cte (to find steer)
+            cte_args = {"waypoints": self.waypoints, "curpose": self.current_pose, "maxpoints": 10}
+            cte = calculate_cte(**cte_args)
+
+            #rospy.logwarn(cte)
+            # Find: velocity, target velocity, ...
+            v_target = self.twist.linear.x
+            v = self.velocity
+            w_target = self.twist.angular.z
+            w = self.w
+
+            # Control
+
+            controller_args = {"cte": cte,
+                               "dbw_enabled": self.dbw_enabled,
+                               "v": v,
+                               "v_target": v_target,
+                               "w_target": w_target,
+                               "w": w}
+            throttle, brake, steer = self.controller.control(**controller_args)
+
+            # Publish control data to ROS topics
+            # Is Manual Driving
+
+
+            #rospy.logwarn(v)
+            #rospy.logwarn(v_target)
+            #rospy.logwarn(throttle)
+            #rospy.logwarn(brake)
+
+
+            if self.dbw_enabled:
+                #rospy.logwarn("OK")
+                self.publish(throttle,brake,steer)
+            #else:
+                #rospy.logwarn("Manual")
+
+
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
@@ -98,9 +222,24 @@ class DBWNode(object):
 
     def waypoints_cb(self, msg):
         # TODO: Change it later, Simple implementation only to test the partial waypoint node.
-        first_w = msg.waypoints[0]
-        rospy.loginfo('Received waypoints of size {}'.format(len(msg.waypoints)))
-        self.publish(0.5, 0, 0)
+        #first_w = msg.waypoints[0]
+        #rospy.loginfo('Received waypoints of size {}'.format(len(msg.waypoints)))
+        #self.publish(1, 0, 0)
+        self.waypoints = msg.waypoints
+
+    def dbw_enabled_cb(self,msg):
+        self.dbw_enabled = bool(msg.data)
+
+    def twist_cb(self,msg):
+        self.twist = msg.twist
+
+    def velocity_cb(self,msg):
+        self.velocity = msg.twist.linear.x
+        self.w = msg.twist.angular.z
+
+    def current_pose_cb(self,msg):
+        self.current_pose = msg.pose
+
 
 
 if __name__ == '__main__':
