@@ -93,6 +93,12 @@ class TLDetector(object):
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
 
+
+    def euclidean_distance(self, position1, position2):
+        x = position1.x - position2.x
+        y = position1.y - position2.y
+        return math.sqrt((x*x) + (y*y))
+
     def get_closest_waypoint(self, pose):
         """Identifies the closest path waypoint to the given position
            ## https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
@@ -166,6 +172,34 @@ class TLDetector(object):
         #Get classification
         return self.light_classifier.get_classification(cv_image)
 
+    def get_closest_traffic_light(self, pose):
+        stop_line_positions = self.config['stop_line_positions']
+        closest_distance = 0
+        for light_position in stop_line_positions:
+
+            distance = self.euclidean_distance(pose.position.x, pose.position.y, light_position[0], light_position[1])
+            if distance < closest_distance:
+                closest_distance = distance
+                closest_light_position = light_position
+        return closest_light_position
+
+    def get_closest_waypoint_to_coords(self, coords):
+        if self.waypoints is not None:
+            closest_distance = 0
+            closest_index = 0
+            x = coords[0]
+            y = coords[1]
+
+            for i, waypoint in enumerate(self.waypoints.waypoints):
+                distance = self.euclidean_distance(x, y,
+                                               waypoint.pose.pose.position.x, waypoint.pose.pose.position.y)
+                if distance < closest_distance:
+                    closest_index = i
+                    closest_distance = distance
+
+            return closest_index
+
+
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
             location and color
@@ -178,32 +212,27 @@ class TLDetector(object):
         light = None
         light_wp = -1
 
-        # List of positions that correspond to the line to stop in front of for a given intersection
-        stop_line_positions = self.config['stop_line_positions']
-        if(self.pose):
-            # find the closest visible traffic light (if one exists)
-            car_position = self.get_closest_waypoint(self.pose.pose)
-            
-            # get closest light
-            list_lights = [[l.pose.pose.position.x, l.pose.pose.position.y] for l in self.lights]
-            light_position = self.get_closest_point(list_lights, [self.pose.pose.position.x,self.pose.pose.position.y])
+        # get closest light
+        list_lights = [[l.pose.pose.position.x, l.pose.pose.position.y] for l in self.lights]
+        light_position = self.get_closest_point(list_lights, [self.pose.pose.position.x,self.pose.pose.position.y])
 
-            if light_position != -1:
-                # get closest stop position
-                stop_position = self.get_closest_point(stop_line_positions, list_lights[light_position])
-                if stop_position != -1:
-                    pose = Pose()
-                    pose.position.x = stop_line_positions[stop_position][0]
-                    pose.position.y = stop_line_positions[stop_position][1]
+        if light_position != -1:
+            # get closest stop position
+            stop_position = self.get_closest_point(stop_line_positions, list_lights[light_position])
+            if stop_position != -1:
+                pose = Pose()
+                pose.position.x = stop_line_positions[stop_position][0]
+                pose.position.y = stop_line_positions[stop_position][1]
                     
-                    light_wp =  self.get_closest_waypoint(pose)
-                    light = light_wp
+                light_wp =  self.get_closest_waypoint(pose)
+                light = light_wp
                     
-            if light:
+        if light:
             #state = self.get_light_state(light)
             # TODO: remove later, only for testing
-            state = self.lights[light_position].state            
+            state = self.state
             return light_wp, state
+        
         self.waypoints = None
         return -1, TrafficLight.UNKNOWN
 
