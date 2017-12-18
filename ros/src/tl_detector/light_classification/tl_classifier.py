@@ -1,3 +1,4 @@
+import rospy
 from styx_msgs.msg import TrafficLight
 import tensorflow as tf
 import numpy as np
@@ -5,6 +6,7 @@ import cv2
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageColor
+import matplotlib.image as mpimg
 import numpy as np
 
 class TLClassifier(object):
@@ -12,7 +14,7 @@ class TLClassifier(object):
 
     def __init__(self):
 
-        self.detection_graph = self.load_graph('frozen_inference_graph.pb')
+        self.detection_graph = self.load_graph('light_classification/frozen_inference_graph.pb')
         self.image_tensor = self.detection_graph.get_tensor_by_name('image_tensor:0')
         self.detection_boxes = self.detection_graph.get_tensor_by_name('detection_boxes:0')
         self.detection_scores = self.detection_graph.get_tensor_by_name('detection_scores:0')
@@ -21,6 +23,9 @@ class TLClassifier(object):
 
     
     def get_classification(self, image):
+
+	ycbcr = image.convert('YCbCr')
+        image = np.ndarray((1, image.size[1], image.size[0], 3), 'u1', ycbcr.tobytes())
 
         # Get boxes for traffic lights
         boxes, scores, classes = self.get_boxes_for_traffic_lights(image)
@@ -40,6 +45,8 @@ class TLClassifier(object):
 
             light_color = self.get_light_classification(image_resized, boxes)
             if light_color == 0:
+		rospy.loginfo('*********************************************')
+		rospy.loginfo('RED LIGHT DETECTED')
                 return TrafficLight.RED
 
         return TrafficLight.UNKNOWN

@@ -141,8 +141,8 @@ class Controller(object):
         yaw_steer = self.yaw_controller.get_steering( v_target, w_target, v)
         steer = yaw_steer + corrective_steer
 
-        rospy.logwarn("steer:")
-        rospy.logwarn(steer)
+        #rospy.logwarn("steer:")
+        #rospy.logwarn(steer)
         #rospy.logwarn("T:")
         #rospy.logwarn(throttle)
         #rospy.logwarn("brake:")
