@@ -7,10 +7,52 @@ GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
 
 
-# steer pid parameter
-S_KP = 0.10
-S_KI = 0.00
-S_KD = 0.25
+# steer pid parameter - Beautiful!
+S_KP = 2.5
+S_KI = 0.0006
+S_KD = 3.5
+
+# steer pid parameter - Beautiful!
+#S_KP = 2.2
+#S_KI = 0.0006
+#S_KD = 4
+
+# steer pid parameter - Beautiful!
+#S_KP = 2.2
+#S_KI = 0.0006
+#S_KD = 3.5
+
+# steer pid parameter - Beautiful!
+#S_KP = 2.2
+#S_KI = 0.0006
+#S_KD = 3
+
+# steer pid parameter - Beautiful!
+#S_KP = 2
+#S_KI = 0.0009
+#S_KD = 3
+
+# steer pid parameter - best so far
+#S_KP = 0.9
+#S_KI = 0.0004
+#S_KD = 3
+
+# steer pid parameter - 2nd best
+#S_KP = 1
+#S_KI = 0.002
+#S_KD = 3
+
+# steer pid parameter - 3rd best
+#S_KP = 0.9
+#S_KI = 0.002
+#S_KD = 3
+
+# steer pid parameter - 4th best
+#S_KP = 0.4
+#S_KI = 0.002
+#S_KD = 3
+
+
 
 # velocity pid parameters
 V_KP = 15.0
@@ -23,7 +65,7 @@ ARBITRARY_LAG = 0.5
 # some flags
 use_velocity_pid_only = False
 use_velocity_corrective_pid = True
-use_steering_pid = False
+use_steering_pid = True
 use_4times_brake = True
 
 
@@ -73,8 +115,8 @@ class Controller(object):
 
 
         self.yaw_controller = yaw_controller.YawController(
-            self.wheel_base, self.steer_ratio, 1.0,
-            self.max_lat_accel, self.max_steer_angle)
+            self.wheel_base, self.steer_ratio, 0.0,
+            self.max_lat_accel, self.max_steer_angle) # aLEX YAW CONTROLLER SET TO 0
 
          # max torque (1.0 throttle) and  max brake torque (deceleration lmt)
         self.max_acc_torque = self.vehicle_mass * self.max_acceleration * self.wheel_radius
@@ -82,8 +124,6 @@ class Controller(object):
 
         # 1st timestamp
         self.last_time = rospy.get_time()
-
-
 
     def control(self, *args, **kwargs):
         # TODO: Change the arg, kwarg list to suit your needs
@@ -114,11 +154,17 @@ class Controller(object):
             cte = kwargs.get('cte')
             # this is a quite laggy environment so it's supposed to be corrected by another PID controller
             # as we have some model in yaw controller, we can just sum this corrective_steer after
-            corrective_steer = self.pid_steer.step(cte, ARBITRARY_LAG)
-            corrective_steer = self.steer_filter.filt(corrective_steer)
+            #corrective_steer = self.pid_steer.step(cte, ARBITRARY_LAG)
+            #params, err = self.pid_steer.twiddle(cte)
+            #S_KP = param[0]
+            #S_KI = param[1]
+            #S_KD = param[2]
+            corrective_steer = self.pid_steer.step(cte, dt)
+
+            #corrective_steer = self.steer_filter.filt(corrective_steer)
         else:
             # will assume no lag
-            corrective_steer = 0.
+            corrective_steer = 0.0001
 
 
         # Speed Controller velocity error
@@ -139,10 +185,11 @@ class Controller(object):
 
 
         yaw_steer = self.yaw_controller.get_steering( v_target, w_target, v)
-        steer = yaw_steer + corrective_steer
+        #steer = yaw_steer + corrective_steer
+        steer = corrective_steer
 
-        rospy.logwarn("steer:")
-        rospy.logwarn(steer)
+        #rospy.logwarn("steer:")
+        #rospy.logwarn(corrective_steer)
         #rospy.logwarn("T:")
         #rospy.logwarn(throttle)
         #rospy.logwarn("brake:")

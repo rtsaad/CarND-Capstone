@@ -35,3 +35,28 @@ class PID(object):
         self.last_error = error
 
         return val
+
+    #def twiddle(cte, tol=0.2): 
+    #    p = [0, 0, 0]
+    #    dp = [1, 1, 1]
+    #    err = 0
+    #    best_err = cte
+        # twiddle loop here
+    #    it = 0
+    #    while (sum(dp)) > tol:
+    #        for i in range(len(p)):
+    #            p[i] += dp[i]
+    #            if err < best_err:
+    #                best_err = err
+    #                dp[i] *= 1.1
+    #            else:
+    #                p[i] -= 2*dp[i]
+    #                
+    #                if err < best_err:
+    #                    best_err = err
+    #                    dp[i] *= 1.1
+    #                else:
+    #                    p[i] += dp[i]
+    #                    dp[i] *= 0.9
+    #    it += 1
+    #    return p, best_err 
