@@ -7,10 +7,52 @@ GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
 
 
-# steer pid parameter
-S_KP = 0.9
-S_KI = 0.0004
-S_KD = 3
+# steer pid parameter - Beautiful!
+S_KP = 2.5
+S_KI = 0.0006
+S_KD = 3.5
+
+# steer pid parameter - Beautiful!
+#S_KP = 2.2
+#S_KI = 0.0006
+#S_KD = 4
+
+# steer pid parameter - Beautiful!
+#S_KP = 2.2
+#S_KI = 0.0006
+#S_KD = 3.5
+
+# steer pid parameter - Beautiful!
+#S_KP = 2.2
+#S_KI = 0.0006
+#S_KD = 3
+
+# steer pid parameter - Beautiful!
+#S_KP = 2
+#S_KI = 0.0009
+#S_KD = 3
+
+# steer pid parameter - best so far
+#S_KP = 0.9
+#S_KI = 0.0004
+#S_KD = 3
+
+# steer pid parameter - 2nd best
+#S_KP = 1
+#S_KI = 0.002
+#S_KD = 3
+
+# steer pid parameter - 3rd best
+#S_KP = 0.9
+#S_KI = 0.002
+#S_KD = 3
+
+# steer pid parameter - 4th best
+#S_KP = 0.4
+#S_KI = 0.002
+#S_KD = 3
+
+
 
 # velocity pid parameters
 V_KP = 15.0
@@ -83,30 +125,6 @@ class Controller(object):
         # 1st timestamp
         self.last_time = rospy.get_time()
 
-    def twiddle(cte, tol=0.2): 
-        p = [0, 0, 0]
-        dp = [1, 1, 1]
-        x_trajectory, y_trajectory, best_err = cte
-        # twiddle loop here
-        it = 0
-        while (sum(dp)) > tol:
-            for i in range(len(p)):
-                p[i] += dp[i]
-                if err < best_err:
-                    best_err = err
-                    dp[i] *= 1.1
-                else:
-                    p[i] -= 2*dp[i]
-                    
-                    if err < best_err:
-                        best_err = err
-                        dp[i] *= 1.1
-                    else:
-                        p[i] += dp[i]
-                        dp[i] *= 0.9
-        it += 1
-        return p, best_err
-
     def control(self, *args, **kwargs):
         # TODO: Change the arg, kwarg list to suit your needs
         # Return throttle, brake, steer
@@ -137,7 +155,12 @@ class Controller(object):
             # this is a quite laggy environment so it's supposed to be corrected by another PID controller
             # as we have some model in yaw controller, we can just sum this corrective_steer after
             #corrective_steer = self.pid_steer.step(cte, ARBITRARY_LAG)
+            #params, err = self.pid_steer.twiddle(cte)
+            #S_KP = param[0]
+            #S_KI = param[1]
+            #S_KD = param[2]
             corrective_steer = self.pid_steer.step(cte, dt)
+
             #corrective_steer = self.steer_filter.filt(corrective_steer)
         else:
             # will assume no lag
@@ -165,8 +188,8 @@ class Controller(object):
         #steer = yaw_steer + corrective_steer
         steer = corrective_steer
 
-        rospy.logwarn("steer:")
-        rospy.logwarn(corrective_steer)
+        #rospy.logwarn("steer:")
+        #rospy.logwarn(corrective_steer)
         #rospy.logwarn("T:")
         #rospy.logwarn(throttle)
         #rospy.logwarn("brake:")
