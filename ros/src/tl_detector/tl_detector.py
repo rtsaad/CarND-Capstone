@@ -16,6 +16,8 @@ STATE_COUNT_THRESHOLD = 3
 
 class TLDetector(object):
     def __init__(self):
+	rospy.logwarn('INIT')
+
         rospy.init_node('tl_detector')
 
         self.pose = None
@@ -70,6 +72,8 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
 
         """
+	rospy.logwarn('IMAGE GET')
+
         self.has_image = True
         self.camera_image = msg
         light_wp, state = self.process_traffic_lights()
@@ -167,9 +171,10 @@ class TLDetector(object):
             return False
 
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+	image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
 
         #Get classification
-        return self.light_classifier.get_classification(cv_image)
+        return self.light_classifier.get_classification(image)
 
     def get_closest_traffic_light(self, pose):
         stop_line_positions = self.config['stop_line_positions']

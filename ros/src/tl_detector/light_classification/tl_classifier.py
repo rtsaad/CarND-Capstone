@@ -24,13 +24,12 @@ class TLClassifier(object):
     
     def get_classification(self, image):
 
-	ycbcr = image.convert('YCbCr')
-        image = np.ndarray((1, image.size[1], image.size[0], 3), 'u1', ycbcr.tobytes())
-
+	img_expanded = np.expand_dims(np.asarray(image, dtype=np.uint8), 0) 
         # Get boxes for traffic lights
-        boxes, scores, classes = self.get_boxes_for_traffic_lights(image)
+        boxes, scores, classes = self.get_boxes_for_traffic_lights(img_expanded)
 
-        width, height = image.size
+	height, width, channels = image.shape
+        #width, height = image.size
         box_coords = self.to_image_coords(boxes, height, width)
 
         for i in range(len(boxes)):
@@ -49,17 +48,18 @@ class TLClassifier(object):
 		rospy.loginfo('RED LIGHT DETECTED')
                 return TrafficLight.RED
 
+	rospy.loginfo('UNKNOWN')
         return TrafficLight.UNKNOWN
     
 
     def get_boxes_for_traffic_lights(self, image):
         with tf.Session(graph=self.detection_graph) as sess:
 
-            img_expanded = np.expand_dims(np.asarray(image, dtype=np.uint8), 0) 
+            # img_expanded = np.expand_dims(np.asarray(image, dtype=np.uint8), 0) 
 
             # Actual detection.
             (boxes, scores, classes, num) = sess.run([self.detection_boxes, self.detection_scores, self.detection_classes, self.detection_number], 
-                                        feed_dict={self.image_tensor: img_expanded})
+                                        feed_dict={self.image_tensor: image})
 
             # Remove unnecessary dimensions
             boxes = np.squeeze(boxes)
@@ -74,8 +74,8 @@ class TLClassifier(object):
 
         with tf.Session(graph=self.detection_graph) as sess:
                 
-            saver = tf.train.import_meta_graph('./traffic_light.ckpt.meta')
-            saver.restore(sess, './traffic_light.ckpt')
+            saver = tf.train.import_meta_graph('light_classification/traffic_light.ckpt.meta')
+            saver.restore(sess, 'light_classification/traffic_light.ckpt')
 
             input_image = tf.get_default_graph().get_tensor_by_name("input_image:0")
             model_output = tf.get_default_graph().get_tensor_by_name("model_output:0")
