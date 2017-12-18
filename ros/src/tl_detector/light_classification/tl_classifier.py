@@ -20,7 +20,7 @@ class TLClassifier(object):
         self.detection_scores = self.detection_graph.get_tensor_by_name('detection_scores:0')
         self.detection_classes = self.detection_graph.get_tensor_by_name('detection_classes:0')
         self.detection_number = self.detection_graph.get_tensor_by_name('num_detections:0')
-
+        
     
     def get_classification(self, image):
 
@@ -46,6 +46,7 @@ class TLClassifier(object):
             if light_color == 0:
 		rospy.loginfo('*********************************************')
 		rospy.loginfo('RED LIGHT DETECTED')
+		mpimg.imsave("out.png", image)
                 return TrafficLight.RED
 
 	rospy.loginfo('UNKNOWN')
@@ -54,8 +55,6 @@ class TLClassifier(object):
 
     def get_boxes_for_traffic_lights(self, image):
         with tf.Session(graph=self.detection_graph) as sess:
-
-            # img_expanded = np.expand_dims(np.asarray(image, dtype=np.uint8), 0) 
 
             # Actual detection.
             (boxes, scores, classes, num) = sess.run([self.detection_boxes, self.detection_scores, self.detection_classes, self.detection_number], 
@@ -73,14 +72,12 @@ class TLClassifier(object):
     def get_light_classification(self, image, boxes):
 
         with tf.Session(graph=self.detection_graph) as sess:
-                
-            saver = tf.train.import_meta_graph('light_classification/traffic_light.ckpt.meta')
-            saver.restore(sess, 'light_classification/traffic_light.ckpt')
+	    self.classification_graph = tf.train.import_meta_graph('light_classification/traffic_light.ckpt.meta')
+	    self.classification_graph.restore(sess, 'light_classification/traffic_light.ckpt')
+	    self.input_image = tf.get_default_graph().get_tensor_by_name("input_image:0")
+            self.model_output = tf.get_default_graph().get_tensor_by_name("model_output:0")
 
-            input_image = tf.get_default_graph().get_tensor_by_name("input_image:0")
-            model_output = tf.get_default_graph().get_tensor_by_name("model_output:0")
-
-            classes = sess.run(model_output, {input_image: [image]})[0]
+            classes = sess.run(self.model_output, {self.input_image: [image]})[0]
             return classes.tolist().index(max(classes))
 
 

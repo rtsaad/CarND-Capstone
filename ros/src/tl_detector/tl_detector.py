@@ -16,7 +16,6 @@ STATE_COUNT_THRESHOLD = 3
 
 class TLDetector(object):
     def __init__(self):
-	rospy.logwarn('INIT')
 
         rospy.init_node('tl_detector')
 
@@ -72,7 +71,6 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
 
         """
-	rospy.logwarn('IMAGE GET')
 
         self.has_image = True
         self.camera_image = msg
