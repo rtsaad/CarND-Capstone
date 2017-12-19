@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 
-import eventlet
-eventlet.monkey_patch(socket=True, select=True, time=True)
-
-import eventlet.wsgi
 import socketio
+import eventlet
+import eventlet.wsgi
 import time
 from flask import Flask, render_template
 
@@ -65,4 +63,4 @@ if __name__ == '__main__':
     app = socketio.Middleware(sio, app)
 
     # deploy as an eventlet WSGI server
-eventlet.wsgi.server(eventlet.listen(('', 4567)), app)
+    eventlet.wsgi.server(eventlet.listen(('', 4567)), app)
