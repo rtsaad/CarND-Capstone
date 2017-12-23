@@ -13,6 +13,7 @@ import yaml
 import math
 
 STATE_COUNT_THRESHOLD = 3
+SKIP_IMAGES_NUMBER = 5
 
 class TLDetector(object):
     def __init__(self):
@@ -55,6 +56,8 @@ class TLDetector(object):
         sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
         sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
 
+	self.num_image = 0
+
         rospy.spin()
 
     def pose_cb(self, msg):
@@ -75,6 +78,13 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
 
         """
+
+	# Skip some of the input images to give more time to the classifier
+	if self.num_image < SKIP_IMAGES_NUMBER:
+		self.num_image += 1
+		return
+	self.num_image = 0
+
 
         self.has_image = True
         self.camera_image = msg

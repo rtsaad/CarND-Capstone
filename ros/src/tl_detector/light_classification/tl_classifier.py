@@ -114,10 +114,8 @@ class TLClassifier(object):
 
             light_color = self.get_light_classification(image_resized, boxes)
             if light_color == 0:
-		rospy.loginfo('*********************************************')
 		rospy.loginfo('RED LIGHT DETECTED')
-		mpimg.imsave("out.png", image)
-                return TrafficLight.RED
+		return TrafficLight.RED
 
 	rospy.loginfo('UNKNOWN')
         return TrafficLight.UNKNOWN
