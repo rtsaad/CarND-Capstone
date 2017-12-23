@@ -13,17 +13,26 @@ import numpy as np
 class GraphClassifier():
 
     def __init__(self):
-        self.classification_graph = tf.Graph()
+        self.classification_graph = self.load_graph('light_classification/frozen_traffic_graph.pb')
+	self.input_image = self.classification_graph.get_tensor_by_name('input_image:0')
+	self.model_output = self.classification_graph.get_tensor_by_name('model_output:0')
         self.sess = tf.Session(graph=self.classification_graph)
-        with self.classification_graph.as_default():
-            self.classification_graph_saver = tf.train.import_meta_graph('light_classification/traffic_light.ckpt.meta')
-	    self.classification_graph_saver.restore(self.sess, 'light_classification/traffic_light.ckpt')
-            self.input_image = tf.get_default_graph().get_tensor_by_name("input_image:0")
-            self.model_output = tf.get_default_graph().get_tensor_by_name("model_output:0")
 
     def run(self, image):
         classes = self.sess.run(self.model_output, {self.input_image: [image]})[0]
         return classes.tolist().index(max(classes))
+
+    def load_graph(self, graph_file):
+        """Loads a frozen inference graph"""
+        graph = tf.Graph()
+        with graph.as_default():
+            od_graph_def = tf.GraphDef()
+            with tf.gfile.GFile(graph_file, 'rb') as fid:
+                serialized_graph = fid.read()
+                od_graph_def.ParseFromString(serialized_graph)
+                tf.import_graph_def(od_graph_def, name='')
+        return graph
+
 
 class GraphDetection():
 
