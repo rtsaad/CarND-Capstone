@@ -37,6 +37,8 @@ class TLDetector(object):
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
+        # List of positions that correspond to the line to stop in front of for a given intersection
+        self.stop_line_positions = self.config['stop_line_positions']
 
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
@@ -47,8 +49,9 @@ class TLDetector(object):
         self.state = TrafficLight.UNKNOWN
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
-        self.state_count = 0
-
+        self.state_count = 0        
+        self.lights = None
+        
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         
@@ -66,6 +69,7 @@ class TLDetector(object):
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
+        self.list_lights = [[l.pose.pose.position.x, l.pose.pose.position.y] for l in self.lights]
 
     def image_cb(self, msg):        
         """Identifies red lights in the incoming camera image and publishes the index
@@ -217,33 +221,30 @@ class TLDetector(object):
         """
         light = None
         light_wp = -1
-
-
-	# List of positions that correspond to the line to stop in front of for a given intersection
-        stop_line_positions = self.config['stop_line_positions']
-        if(self.pose):
+	
+        if(self.pose and self.lights):
             # find the closest visible traffic light (if one exists)
             car_position = self.get_closest_waypoint(self.pose.pose)
 
-	    # get closest light
-            list_lights = [[l.pose.pose.position.x, l.pose.pose.position.y] for l in self.lights]
-            light_position = self.get_closest_point(list_lights, [self.pose.pose.position.x,self.pose.pose.position.y])
+	    # get closest light            
+            light_position = self.get_closest_point(self.list_lights, [self.pose.pose.position.x,self.pose.pose.position.y])
 
             if light_position != -1:
                 # get closest stop position
                 #check distance
                 
-                stop_position = self.get_closest_point(stop_line_positions, list_lights[light_position])
+                stop_position = self.get_closest_point(self.stop_line_positions, self.list_lights[light_position])
                 if stop_position != -1:
                     pose = Pose()
-                    pose.position.x = stop_line_positions[stop_position][0]
-                    pose.position.y = stop_line_positions[stop_position][1]
+                    pose.position.x = self.stop_line_positions[stop_position][0]
+                    pose.position.y = self.stop_line_positions[stop_position][1]
                     
                     light_wp =  self.get_closest_waypoint(pose)
                     light = light_wp
                     
             if light:
-                state = self.get_light_state(light)
+                #state = self.get_light_state(light)
+                state = self.lights[light_position].state
                 return light_wp, state
         self.waypoints = None
         return -1, TrafficLight.UNKNOWN
