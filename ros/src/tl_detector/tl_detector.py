@@ -192,34 +192,7 @@ class TLDetector(object):
         #Get classification
         return self.light_classifier.get_classification(image)
 
-    def get_closest_traffic_light(self, pose):
-        stop_line_positions = self.config['stop_line_positions']
-        closest_distance = 0
-        for light_position in stop_line_positions:
-
-            distance = self.euclidean_distance(pose.position.x, pose.position.y, light_position[0], light_position[1])
-            if distance < closest_distance:
-                closest_distance = distance
-                closest_light_position = light_position
-        return closest_light_position
-
-    def get_closest_waypoint_to_coords(self, coords):
-        if self.waypoints is not None:
-            closest_distance = 0
-            closest_index = 0
-            x = coords[0]
-            y = coords[1]
-
-            for i, waypoint in enumerate(self.waypoints.waypoints):
-                distance = self.euclidean_distance(x, y,
-                                               waypoint.pose.pose.position.x, waypoint.pose.pose.position.y)
-                if distance < closest_distance:
-                    closest_index = i
-                    closest_distance = distance
-
-            return closest_index
-
-
+    
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
             location and color
@@ -253,8 +226,8 @@ class TLDetector(object):
                     light = light_wp
                     
             if light:
-                #state = self.get_light_state(light)
-                state = self.lights[light_position].state
+                state = self.get_light_state(light)
+                #state = self.lights[light_position].state
                 return light_wp, state
         self.waypoints = None
         return -1, TrafficLight.UNKNOWN

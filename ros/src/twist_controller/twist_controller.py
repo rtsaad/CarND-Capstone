@@ -12,76 +12,15 @@ S_KP = 2.5
 S_KI = 0.0006
 S_KD = 3.5
 
-# steer pid parameter - Beautiful!
-#S_KP = 2.2
-#S_KI = 0.0006
-#S_KD = 4
-
-# steer pid parameter - Beautiful!
-#S_KP = 2.2
-#S_KI = 0.0006
-#S_KD = 3.5
-
-# steer pid parameter - Beautiful!
-#S_KP = 2.2
-#S_KI = 0.0006
-#S_KD = 3
-
-# steer pid parameter - Beautiful!
-#S_KP = 2
-#S_KI = 0.0009
-#S_KD = 3
-
-# steer pid parameter - best so far
-#S_KP = 0.9
-#S_KI = 0.0004
-#S_KD = 3
-
-# steer pid parameter - 2nd best
-#S_KP = 1
-#S_KI = 0.002
-#S_KD = 3
-
-# steer pid parameter - 3rd best
-#S_KP = 0.9
-#S_KI = 0.002
-#S_KD = 3
-
-# steer pid parameter - 4th best
-#S_KP = 0.4
-#S_KI = 0.002
-#S_KD = 3
-
-
-
 # velocity pid parameters
-#V_KP = 15.0
-#V_KI = 0.01
-#V_KD = 0.02
-V_KP = 30 # 25
-V_KI = 3# 9685#0.96768
-V_KD = 0.3# 0.6
-
+V_KP = 30
+V_KI = 3
+V_KD = 0.3
 
 ARBITRARY_LAG = 0.5
 
-# some flags
-use_velocity_pid_only = True
-use_velocity_corrective_pid = False
-use_steering_pid = True
-use_4times_brake = False
-
-
-if use_velocity_corrective_pid:
-    use_velocity_pid_only = False
-
-if not use_velocity_pid_only and not use_velocity_corrective_pid:
-    use_model_velocity_only = True
-else:
-    use_model_velocity_only = False
-
-
-
+# Flags
+use_steering_pid = False
 
 class Controller(object):
     def __init__(self, *args, **kwargs):
@@ -112,8 +51,7 @@ class Controller(object):
                                  mn = -max_abs_angle, mx = max_abs_angle)
 
 
-        if not use_model_velocity_only:
-            self.pid_velocity = pid.PID(kp = V_KP, ki = V_KI, kd = V_KD)
+        self.pid_velocity = pid.PID(kp = V_KP, ki = V_KI, kd = V_KD)
 
 
 
@@ -131,7 +69,7 @@ class Controller(object):
     def control(self, *args, **kwargs):
         # TODO: Change the arg, kwarg list to suit your needs
         # Return throttle, brake, steer
-        #return 1.,0.0,0.0
+        
         dbw_enabled = kwargs.get('dbw_enabled')
         v = kwargs.get('v')
         v_target = kwargs.get('v_target')
@@ -142,8 +80,7 @@ class Controller(object):
             if use_steering_pid:
                 self.pid_steer.reset()
 
-            if not use_model_velocity_only:
-                self.pid_throttle.reset()
+            self.pid_throttle.reset()
 
             return 0.,0.,0.
 
@@ -158,13 +95,8 @@ class Controller(object):
             # this is a quite laggy environment so it's supposed to be corrected by another PID controller
             # as we have some model in yaw controller, we can just sum this corrective_steer after
             #corrective_steer = self.pid_steer.step(cte, ARBITRARY_LAG)
-            #params, err = self.pid_steer.twiddle(cte)
-            #S_KP = param[0]
-            #S_KI = param[1]
-            #S_KD = param[2]
+            #params, err = self.pid_steer.twiddle(cte)            
             corrective_steer = self.pid_steer.step(cte, dt)
-
-            #corrective_steer = self.steer_filter.filt(corrective_steer)
         else:
             # will assume no lag
             corrective_steer = 0.0001
@@ -172,46 +104,22 @@ class Controller(object):
 
         # Speed Controller velocity error
         v_err = v_target - v
-
-        #if use_model_velocity_only:
-        #    T = self.velocity_model(v_err,dt)
-        #elif use_velocity_pid_only:
-        #    T = self.pid_velocity.step(v_err,dt)
-        #elif use_velocity_corrective_pid:
-        #    T = self.pid_velocity.step(v_err,ARBITRARY_LAG)
-        #    T += self.velocity_model(v_err,dt)
-
-        #if v > 2:
         T = self.pid_velocity.step(v_err,dt)
-        use_4times_brake = False
-        #else:
-        #    T = self.velocity_model(v_err,dt)
-        #    use_4times_brake = True
-            
-        # Throttle and Brake
-        throttle = T/self.max_acc_torque if T > 0. else 0.
-        brake = abs(T) if T <= 0. else 0.
-
+        # Adjust Throttle and Brake when speed is zero
         if v_target == 0 and v < 1:
             throttle = 0
             brake = 1
+        else:
+            # Compute Throttle and Brake
+            throttle = T/self.max_acc_torque if T > 0. else 0.
+            brake = abs(T) if T <= 0. else 0.
 
-
+        # Yaw Controller
         yaw_steer = self.yaw_controller.get_steering( v_target, w_target, v)
         #steer = yaw_steer + corrective_steer
-        steer = corrective_steer
+        steer = corrective_steer       
 
-        #rospy.logwarn("steer:")
-        #rospy.logwarn(corrective_steer)
-        #rospy.logwarn("T:")
-        #rospy.logwarn(throttle)
-        #rospy.logwarn("brake:")
-        #rospy.logwarn(brake)
-
-        if use_4times_brake:
-            brake *=4
-
-
+        # Return
         return throttle, brake, yaw_steer
 
 
@@ -233,7 +141,7 @@ class Controller(object):
         # Torque corresponds to throttle so...
         # lets find it
         # T = m . a . R
-        # remember throttle comes in relative means
+        # Remember throttle comes in relative means
         T = self.vehicle_mass * a * self.wheel_radius
 
         return T

@@ -215,11 +215,7 @@ class WaypointUpdater(object):
         # Save current waypoint index       
         self.previous_waypoint_index = self.current_waypoint_index 
         self.current_waypoint_index = index
-        # Check if car moved
-        #if not self.waypoints_changed and self.current_waypoint_index==self.previous_waypoint_index:
-            # Did not move, ignore and publish nothing
-        #    return
-        
+                
         # Check if index point is in front of the car
         mapp = [self.waypoints[index].pose.pose.position.x, self.waypoints[index].pose.pose.position.y, self.waypoints[index].pose.pose.position.z]
         point = [self.current_waypoint.pose.position.x, self.current_waypoint.pose.position.y, self.current_waypoint.pose.position.z]
@@ -301,14 +297,7 @@ class WaypointUpdater(object):
             i += 1
         return index
 
-    def compute_cos_angle(self, v1, v2):
-        mag = lambda v: math.sqrt(v[0]**2 + v[1]**2)# + v[2]**2)    
-        inner_prod = v1[0]*v2[0] + v1[1]*v2[1]# + v1[2]*v2[2]
-        denominator = (mag(v1)*mag(v2))
-        if denominator == 0:
-            return 0
-        return (inner_prod)/denominator
-
+    
 if __name__ == '__main__':
     try:
         WaypointUpdater()
