@@ -7,15 +7,15 @@ GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
 
 
-# steer pid parameter - Beautiful!
+# steer pid parameter 
 S_KP = 2.5
 S_KI = 0.0006
 S_KD = 3.5
 
 # velocity pid parameters
-V_KP = 30
-V_KI = 3
-V_KD = 0.3
+V_KP = 30#23#21#25#28
+V_KI = 3#1.37#1.33#1.5#1.1#3
+V_KD = 1#0.2#0.15#0.05#.3#.3
 
 ARBITRARY_LAG = 0.5
 
@@ -26,8 +26,7 @@ class Controller(object):
     def __init__(self, *args, **kwargs):
         # TODO: Implement
 
-        max_abs_angle = kwargs.get('max_steer_angle')
-        #rospy.logwarn(max_abs_angle)
+        max_abs_angle = kwargs.get('max_steer_angle')        
 
         fuel_capacity = kwargs.get('fuel_capacity')
         self.vehicle_mass = kwargs.get('vehicle_mass')
@@ -56,7 +55,7 @@ class Controller(object):
 
 
         self.yaw_controller = yaw_controller.YawController(
-            self.wheel_base, self.steer_ratio, 0.0,
+            self.wheel_base, self.steer_ratio, 1.0,#0.0,
             self.max_lat_accel, self.max_steer_angle) # aLEX YAW CONTROLLER SET TO 0
 
          # max torque (1.0 throttle) and  max brake torque (deceleration lmt)
@@ -105,8 +104,11 @@ class Controller(object):
         # Speed Controller velocity error
         v_err = v_target - v
         T = self.pid_velocity.step(v_err,dt)
+        if v_target < 3 and v < 4:
+            T = self.velocity_model(v_err,dt)
+            
         # Adjust Throttle and Brake when speed is zero
-        if v_target == 0 and v < 1:
+        if v_target < 1 and v < 1:
             throttle = 0
             brake = 1
         else:

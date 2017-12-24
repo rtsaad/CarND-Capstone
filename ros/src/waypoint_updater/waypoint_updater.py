@@ -9,6 +9,7 @@ import time
 import math
 import tf
 import numpy as np
+import copy
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -92,14 +93,14 @@ class WaypointUpdater(object):
         self.current_waypoint = msg
 
     def waypoints_cb(self, msg):
-        # Load waypoints
-        self.original_waypoints = msg.waypoints
+        # Load waypoints        
         waypoints = msg.waypoints
         # adjust max speed
         for i in range(len(waypoints)):
             if self.get_waypoint_velocity(waypoints[i]) > self.max_speed:
-                self.set_waypoint_velocity(waypoints, i, self.max_speed)
-        self.waypoints = waypoints     
+                self.set_waypoint_velocity(waypoints, i, self.max_speed)            
+        self.waypoints = waypoints
+        self.original_waypoints = copy.deepcopy(waypoints)
         rospy.logwarn('Waypoints loaded successfully ({})'.format(len(self.waypoints)))
         
     
@@ -116,47 +117,51 @@ class WaypointUpdater(object):
         
         should_brake = True
 
-        if self.current_waypoint_index is None:
+        if self.current_waypoint_index is None or self.waypoints is None or self.original_waypoints is None:
             # Ignore
-            return       
+            return
+
+        # Get current Speed
+        current_speed = self.velocity
+        if current_speed <= 0:
+            # Car must be parked
+            # Small speed to reposition car
+            current_speed = 2.8 #self.get_waypoint_velocity(self.waypoints[self.current_waypoint_index])/3
 
         distance_full = 101
         if stop_waypoint_index == -1:
             # No Red light ahead, recover original waypoitns
             # Accelerate
-            stop_waypoint_index =  self.current_waypoint_index + LOOKAHEAD_WPS/2
+            lookahead = LOOKAHEAD_WPS/3
+            stop_waypoint_index =  self.current_waypoint_index + lookahead
             if stop_waypoint_index > len(self.waypoints):
                 stop_waypoint_index = len(self.waypoints)
             should_brake = False
-            distance_full = 99            
+            distance_full = self.distance(self.waypoints, self.current_waypoint_index, stop_waypoint_index-1)
+            # Accelerates in two steps
+            steps = 4
+            
         else:
             # Compute distance to stop
             distance_full = self.distance(self.waypoints, self.current_waypoint_index, stop_waypoint_index-1)        
-   
-        if  distance_full > 100:
-            #ignore
-            return
+            if  distance_full/current_speed > current_speed/0.9 and current_speed > 2.8:
+                rospy.logwarn(" Ignore {} {}".format(current_speed/0.9, distance_full/current_speed))
+                #ignore
+                return
+
+            # Set the number of slow down steps
+            steps = float(int(distance_full/10))
+            if steps == 0:
+                steps = 1
 
         # Update last index to avoid multiple calls
         if not should_brake:
             self.last_stop_index =  -1
         else:
             self.last_stop_index =  stop_waypoint_index
-
-        # Set the number of slow (or accelerate) steps
-        steps = float(int(distance_full/10))
-        if steps == 0:
-            steps = 1
-
-        if distance_full < 19:
-            # Minimum number of steps
-            steps = 1       
         
-        # Compute linear acceleration/slowdown
-        current_speed = self.velocity
-        if current_speed <= 0:
-            current_speed = self.get_waypoint_velocity(self.waypoints[self.current_waypoint_index])
-   
+                
+        # Compute linear acceleration/slowdown  
         # Recover original waypoint speed
         local_max_speed = self.get_waypoint_velocity(self.original_waypoints[stop_waypoint_index])
 
@@ -167,7 +172,7 @@ class WaypointUpdater(object):
         # Step slow down or acceleration 
         linear_acceleration = current_speed/steps
         if not should_brake:
-            linear_acceleration = (local_max_speed - current_speed)/steps
+            linear_acceleration = (local_max_speed)/steps
         distance_divider = (distance_full/steps)
 
         if distance_divider < 1:
@@ -192,8 +197,25 @@ class WaypointUpdater(object):
                     velocity = self.max_speed
                 elif velocity < 1.5:
                     velocity = 1.5
+                #velocity = local_max_speed
             rospy.logwarn("Set speed {} {} {} {} {}".format(i, velocity, multi, linear_acceleration, short_distance))
             self.set_waypoint_velocity(self.waypoints, i, velocity)
+
+        # Check for stops positons of previous red lights
+        if not should_brake:
+            over = False
+            index = stop_waypoint_index+1
+            while not over:
+                wp_speed = self.get_waypoint_velocity(self.original_waypoints[index])
+                wp_current_speed = self.get_waypoint_velocity(self.waypoints[index])
+                if wp_current_speed < wp_speed:
+                    self.set_waypoint_velocity(self.waypoints, index, wp_speed)
+                    rospy.logwarn("Set speed {} {}".format(index, wp_speed))
+                    index +=1                    
+                else:
+                    rospy.logwarn("Index not speed {} {} {}".format(index, wp_current_speed, wp_speed))
+                    over = True
+        
 
         # Force to Publish new waypoints
         self.waypoints_changed = True        

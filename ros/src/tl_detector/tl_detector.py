@@ -204,6 +204,7 @@ class TLDetector(object):
         """
         light = None
         light_wp = -1
+        light_wp_dist = -1
 	
         if(self.pose and self.lights):
             # find the closest visible traffic light (if one exists)
@@ -215,7 +216,8 @@ class TLDetector(object):
             if light_position != -1:
                 # get closest stop position
                 #check distance
-                
+                #dist = self.euclidean_distance(self.lights[light_position].pose.pose.position, self.pose.pose.position)
+                                
                 stop_position = self.get_closest_point(self.stop_line_positions, self.list_lights[light_position])
                 if stop_position != -1:
                     pose = Pose()
@@ -223,7 +225,7 @@ class TLDetector(object):
                     pose.position.y = self.stop_line_positions[stop_position][1]
                     
                     light_wp =  self.get_closest_waypoint(pose)
-                    light = light_wp
+                    light = light_wp                    
                     
             if light:
                 state = self.get_light_state(light)
