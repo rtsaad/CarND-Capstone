@@ -1,3 +1,22 @@
+# Udacity Self-Driving Car Engineer Nanodegree
+
+* * *
+
+
+## Final Project - System Integration
+
+## Team Smart Car Trek
+
+![image alt text](documentationImages/carla.jpg)
+
+### Team Members:
+ - Rodrigo Saad digaots@gmail.com
+ - Alexandre Nogueira alexandre.nogueira@gmail.com
+ - Pablo Elizalde pelizcar@gmail.com 
+ - Simão Luiz Stanislawski Júnior simaoluizjr@gmail.com
+ - Alper Sunar alper_sunar@yahoo.com 
+ 
+---
 ### NOTES
 
 For the traffic light detection part we have decided to use two classifiers. One classifier to detect the traffic lights in the image, and a second one to detect the status of the traffic light (gree/yellow/red).
