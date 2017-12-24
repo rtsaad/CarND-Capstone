@@ -55,18 +55,21 @@ S_KD = 3.5
 
 
 # velocity pid parameters
-V_KP = 15.0
-V_KI = 0.01
-V_KD = 0.02
+#V_KP = 15.0
+#V_KI = 0.01
+#V_KD = 0.02
+V_KP = 30 # 25
+V_KI = 3# 9685#0.96768
+V_KD = 0.3# 0.6
 
 
 ARBITRARY_LAG = 0.5
 
 # some flags
-use_velocity_pid_only = False
-use_velocity_corrective_pid = True
+use_velocity_pid_only = True
+use_velocity_corrective_pid = False
 use_steering_pid = True
-use_4times_brake = True
+use_4times_brake = False
 
 
 if use_velocity_corrective_pid:
@@ -170,18 +173,28 @@ class Controller(object):
         # Speed Controller velocity error
         v_err = v_target - v
 
-        if use_model_velocity_only:
-            T = self.velocity_model(v_err,dt)
-        elif use_velocity_pid_only:
-            T = self.pid_velocity.step(v_err,dt)
-        elif use_velocity_corrective_pid:
-            T = self.pid_velocity.step(v_err,ARBITRARY_LAG)
-            T += self.velocity_model(v_err,dt)
+        #if use_model_velocity_only:
+        #    T = self.velocity_model(v_err,dt)
+        #elif use_velocity_pid_only:
+        #    T = self.pid_velocity.step(v_err,dt)
+        #elif use_velocity_corrective_pid:
+        #    T = self.pid_velocity.step(v_err,ARBITRARY_LAG)
+        #    T += self.velocity_model(v_err,dt)
 
-
+        #if v > 2:
+        T = self.pid_velocity.step(v_err,dt)
+        use_4times_brake = False
+        #else:
+        #    T = self.velocity_model(v_err,dt)
+        #    use_4times_brake = True
+            
         # Throttle and Brake
         throttle = T/self.max_acc_torque if T > 0. else 0.
         brake = abs(T) if T <= 0. else 0.
+
+        if v_target == 0 and v < 1:
+            throttle = 0
+            brake = 1
 
 
         yaw_steer = self.yaw_controller.get_steering( v_target, w_target, v)
@@ -199,7 +212,7 @@ class Controller(object):
             brake *=4
 
 
-        return throttle, brake, steer
+        return throttle, brake, yaw_steer
 
 
 

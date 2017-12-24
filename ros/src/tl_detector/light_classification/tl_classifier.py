@@ -37,8 +37,7 @@ class GraphClassifier():
 class GraphDetection():
 
     def __init__(self):
-        self.detection_graph = self.load_graph('light_classification/frozen_inference_graph.pb')
-        #self.classification_graph = self.load_graph('light_classification/frozen_inference_graph.pb')        
+        self.detection_graph = self.load_graph('light_classification/frozen_inference_graph.pb')        
         self.image_tensor = self.detection_graph.get_tensor_by_name('image_tensor:0')
         self.detection_boxes = self.detection_graph.get_tensor_by_name('detection_boxes:0')
         self.detection_scores = self.detection_graph.get_tensor_by_name('detection_scores:0')

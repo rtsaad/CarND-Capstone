@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TwistStamped
 from styx_msgs.msg import Lane, Waypoint
 from std_msgs.msg import Int32
 
@@ -28,9 +28,6 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 # Global Constants
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
 KMPH_TO_MPS = 1000./(60.*60.)
-MAX_BRAKE =  0.25
-MAX_ACC   = 0.025
-MAX_SPEED = 18
 
 class WaypointUpdater(object):
 
@@ -46,12 +43,11 @@ class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
 
-        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-        
-        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
-        # TODO: check if obstacle_waypoint is really necessary. Rostopic did not find this topic
-        #rospy.Subscriber('/obstacle_waypoint', unknown message type, self.obstacle_cb)
+        # Subscribe to topics
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb, queue_size=1)         
+        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)        
+        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb, queue_size=1)        
         
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
@@ -60,6 +56,8 @@ class WaypointUpdater(object):
         self.current_waypoint = None
         self.current_waypoint_index = None
         self.previous_waypoint_index = None
+        self.last_stop_index = -1
+        self.velocity = None
 
         # Load global variables
         self.max_speed = rospy.get_param('/waypoint_loader/velocity') * KMPH_TO_MPS
@@ -83,6 +81,11 @@ class WaypointUpdater(object):
 
 
     ## Message Functions
+
+    def velocity_cb(self,msg):        
+        self.velocity = msg.twist.linear.x
+        if self.velocity < 0.1:
+            self.velocity = 0
     
     def pose_cb(self, msg):
         # Save current position
@@ -92,18 +95,18 @@ class WaypointUpdater(object):
         # Load waypoints
         self.original_waypoints = msg.waypoints
         waypoints = msg.waypoints
-        # update max speed
+        # adjust max speed
         for i in range(len(waypoints)):
-            self.set_waypoint_velocity(waypoints, i, MAX_SPEED)
+            if self.get_waypoint_velocity(waypoints[i]) > self.max_speed:
+                self.set_waypoint_velocity(waypoints, i, self.max_speed)
         self.waypoints = waypoints     
         rospy.logwarn('Waypoints loaded successfully ({})'.format(len(self.waypoints)))
         
-
-    last_stop_index = -1
+    
     def traffic_cb(self, msg):
         # Callback for /traffic_waypoint message.        
         # Set speed for waypoints before red lights and stop points.
-        # Recover waypoint stop position
+        # Recover waypoint stop position       
 
         stop_waypoint_index = msg.data
 
@@ -121,43 +124,50 @@ class WaypointUpdater(object):
         if stop_waypoint_index == -1:
             # No Red light ahead, recover original waypoitns
             # Accelerate
-            stop_waypoint_index =  self.current_waypoint_index + LOOKAHEAD_WPS
+            stop_waypoint_index =  self.current_waypoint_index + LOOKAHEAD_WPS/2
             if stop_waypoint_index > len(self.waypoints):
                 stop_waypoint_index = len(self.waypoints)
             should_brake = False
-            distance_full = 99
-            #rospy.logwarn("Accelerate Car")
+            distance_full = 99            
         else:
             # Compute distance to stop
             distance_full = self.distance(self.waypoints, self.current_waypoint_index, stop_waypoint_index-1)        
    
         if  distance_full > 100:
             #ignore
-            #rospy.logwarn("Ignore Light Distance")
             return
 
-        # Set the number of slow (or accelerate) steps 
+        # Update last index to avoid multiple calls
+        if not should_brake:
+            self.last_stop_index =  -1
+        else:
+            self.last_stop_index =  stop_waypoint_index
+
+        # Set the number of slow (or accelerate) steps
         steps = float(int(distance_full/10))
         if steps == 0:
             steps = 1
 
-        if distance_full < 40:
+        if distance_full < 19:
             # Minimum number of steps
-            steps = 4
-            
-        self.last_stop_index =  stop_waypoint_index
+            steps = 1       
         
         # Compute linear acceleration/slowdown
-        current_speed = self.get_waypoint_velocity(self.waypoints[self.current_waypoint_index])
+        current_speed = self.velocity
+        if current_speed <= 0:
+            current_speed = self.get_waypoint_velocity(self.waypoints[self.current_waypoint_index])
+   
+        # Recover original waypoint speed
+        local_max_speed = self.get_waypoint_velocity(self.original_waypoints[stop_waypoint_index])
 
-        if not should_brake and current_speed >= MAX_SPEED:            
+        if not should_brake and current_speed >= self.max_speed:            
             # Ignore, no red lights and speed is already high
-            #rospy.logwarn("Ignore Light Speed")
-            return        
+            return
+        
         # Step slow down or acceleration 
         linear_acceleration = current_speed/steps
         if not should_brake:
-            linear_acceleration = MAX_SPEED/steps
+            linear_acceleration = (local_max_speed - current_speed)/steps
         distance_divider = (distance_full/steps)
 
         if distance_divider < 1:
@@ -178,9 +188,11 @@ class WaypointUpdater(object):
             else:
                 # Accelerating
                 velocity = current_speed + diff_velocity
-                if velocity > MAX_SPEED:
-                    velocity = MAX_SPEED
-            #rospy.logwarn("Set speed {} {} {} {} {}".format(i, velocity, multi, linear_acceleration, short_distance))
+                if velocity > self.max_speed:
+                    velocity = self.max_speed
+                elif velocity < 1.5:
+                    velocity = 1.5
+            rospy.logwarn("Set speed {} {} {} {} {}".format(i, velocity, multi, linear_acceleration, short_distance))
             self.set_waypoint_velocity(self.waypoints, i, velocity)
 
         # Force to Publish new waypoints
@@ -204,9 +216,9 @@ class WaypointUpdater(object):
         self.previous_waypoint_index = self.current_waypoint_index 
         self.current_waypoint_index = index
         # Check if car moved
-        if not self.waypoints_changed and self.current_waypoint_index==self.previous_waypoint_index:
+        #if not self.waypoints_changed and self.current_waypoint_index==self.previous_waypoint_index:
             # Did not move, ignore and publish nothing
-            return
+        #    return
         
         # Check if index point is in front of the car
         mapp = [self.waypoints[index].pose.pose.position.x, self.waypoints[index].pose.pose.position.y, self.waypoints[index].pose.pose.position.z]
