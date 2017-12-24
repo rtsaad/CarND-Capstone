@@ -10,7 +10,7 @@
 ![image alt text](documentationImages/carla.jpg)
 
 ### Team Members:
- - Rodrigo Saad digaots@gmail.com
+ - Rodrigo Saad (Team Lead) digaots@gmail.com
  - Alexandre Nogueira alexandre.nogueira@gmail.com
  - Pablo Elizalde pelizcar@gmail.com 
  - Simão Luiz Stanislawski Júnior simaoluizjr@gmail.com
