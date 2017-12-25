@@ -85,17 +85,15 @@ class DBWNode(object):
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
         max_acceleration = rospy.get_param('~max_acceleration', 1.5)
 
-        self.steer_pub = rospy.Publisher('/vehicle/steering_cmd',
+        self.steer_pub = rospy.Publisher('/vehicle/steering_cmd', 
                                          SteeringCmd, queue_size=1)
-        self.throttle_pub = rospy.Publisher('/vehicle/throttle_cmd',
+        self.throttle_pub = rospy.Publisher('/vehicle/throttle_cmd', 
                                             ThrottleCmd, queue_size=1)
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',
                                          BrakeCmd, queue_size=1)
+              
 
-        ##
-        rospy.Subscriber('/final_waypoints', Lane, self.waypoints_cb)
-
-        # TODO: Create `TwistController` object
+        # Create `TwistController` object
         # self.controller = TwistController(<Arguments you wish to provide>)
         kwargs = {
             "vehicle_mass": vehicle_mass,
@@ -115,16 +113,17 @@ class DBWNode(object):
         self.controller = Controller(**kwargs)
 
 
-        # TODO: Subscribe to all the topics you need to
+        # Subscribe to all the topics you need to
         self.dbw_enabled = True
         self.waypoints = None
         self.twist = None
         self.velocity = None
         self.w = None
         self.current_pose = None
+        rospy.Subscriber('/final_waypoints', Lane, self.waypoints_cb)
         rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb, queue_size=1)
         rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cb, queue_size=1)
-        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb, queue_size = 1)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb, queue_size=1)
         rospy.Subscriber('/current_pose', PoseStamped, self.current_pose_cb, queue_size=1)
 
         self.loop()

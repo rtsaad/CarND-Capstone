@@ -47,13 +47,15 @@ class TLDetector(object):
         self.light_classifier = TLClassifier()
         self.listener = tf.TransformListener()
 
+        rospy.logwarn("Classifiers Loaded")
+
         self.state = TrafficLight.UNKNOWN
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0        
         self.lights = None
         
-        sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         
         sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
@@ -83,10 +85,11 @@ class TLDetector(object):
 
         """
 
+        # Uncomment to use the state from emulator
 	# Skip some of the input images to give more time to the classifier
-	if self.num_image < SKIP_IMAGES_NUMBER:
-		self.num_image += 1
-		return
+	#if self.num_image < SKIP_IMAGES_NUMBER:
+	#	self.num_image += 1
+	#	return
 	self.num_image = 0
 
 
@@ -229,6 +232,7 @@ class TLDetector(object):
                     
             if light:
                 state = self.get_light_state(light)
+                # Uncomment to use the state from emulator
                 #state = self.lights[light_position].state
                 return light_wp, state
         self.waypoints = None

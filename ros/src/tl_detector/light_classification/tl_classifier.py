@@ -113,10 +113,10 @@ class TLClassifier(object):
 
             light_color = self.get_light_classification(image_resized, boxes)
             if light_color == 0:
-		rospy.loginfo('RED LIGHT DETECTED')
+		#rospy.loginfo('RED LIGHT DETECTED')
 		return TrafficLight.RED
 
-	rospy.loginfo('UNKNOWN')
+	#rospy.loginfo('UNKNOWN')
         return TrafficLight.UNKNOWN
     
 

@@ -23,8 +23,7 @@ ARBITRARY_LAG = 0.5
 use_steering_pid = False
 
 class Controller(object):
-    def __init__(self, *args, **kwargs):
-        # TODO: Implement
+    def __init__(self, *args, **kwargs):        
 
         max_abs_angle = kwargs.get('max_steer_angle')        
 
