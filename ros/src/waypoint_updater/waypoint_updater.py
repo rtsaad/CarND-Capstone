@@ -143,7 +143,8 @@ class WaypointUpdater(object):
             
         else:
             # Compute distance to stop
-            distance_full = self.distance(self.waypoints, self.current_waypoint_index, stop_waypoint_index-1)        
+            distance_full = self.distance(self.waypoints, self.current_waypoint_index, stop_waypoint_index-1)
+            # Check time to brake with decelerating 0.9 m/s2 
             if  distance_full/current_speed > current_speed/0.9 and current_speed > 2.8:
                 rospy.logwarn(" Ignore {} {}".format(current_speed/0.9, distance_full/current_speed))
                 #ignore
