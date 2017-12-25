@@ -17,7 +17,7 @@
  - Alper Sunar alper_sunar@yahoo.com 
  
 ---
-### NOTES
+### Traffic Light Detection
 
 For the traffic light detection part we have decided to use two classifiers. One classifier to detect the traffic lights in the image, and a second one to detect the status of the traffic light (gree/yellow/red).
 
@@ -57,6 +57,18 @@ We faced a big issue in case several traffic lights are detected with different 
  * In case none of the traffic lights is detected as red, we return TrafficLight.UNKNOWN.
 
  So basically our is reduced to two states: stop and go.
+
+---
+### Twist Controller
+
+The twist controller does receive all the arguments that are related to the car properties and the PID controller. It is the software node that is responsible to receive the inputs/arguments from the topics gathered from dbw_node.py and translate it into steering commands to the car.
+
+It also calls the PID controller to be reset and to receive the incoming data from the waypoints. Such node contains the PID parameters that are required to tune the vehicle operation, for the steering operation.
+In this script we also set the parameters for the PID controller that has been implemented. This PID parameters were set manually and the values obtained were the best we reached.
+
+### Yaw Controller
+The yaw controller is an unchanged node from the original git deploy. The only change in this node is the addition of a check on the current velocity, that increases the accuracy for steering for small angles.
+
 
 ---
 This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car. For more information about the project, see the project introduction [here](https://classroom.udacity.com/nanodegrees/nd013/parts/6047fe34-d93c-4f50-8336-b70ef10cb4b2/modules/e1a23b06-329a-4684-a717-ad476f0d8dff/lessons/462c933d-9f24-42d3-8bdc-a08a5fc866e4/concepts/5ab4b122-83e6-436d-850f-9f4d26627fd9).
