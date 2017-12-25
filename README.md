@@ -17,6 +17,22 @@
  - Alper Sunar alper_sunar@yahoo.com 
  
 ---
+###Waypoint Updater
+
+This node publishes the next LOOKAHEADWPS number of waypoints that are closest to vehicle's current location and are ahead of the vehicle. This node also considers obstacles and traffic lights to set the velocity for each waypoint.
+
+![Waypoint updater (partial)](/documentationImages/waypoint_updater_partial.png)This node subscribes to following topics:
+
+- /base_waypoints: Waypoints for the whole track are published to this topic. This publication is a one-time only operation. The waypoint updater node receives these waypoints, stores them for later use and uses these points to extract the next LOOKAHEADWPS number of points ahead of the vehicle.
+
+- /traffic_waypoint: To receive the index of the waypoint in the base_waypoints list, which is closest to the red traffic light so that the vehicle can be stopped. The waypoint updater node uses this index to calculate the distance from the vehicle to the traffic light if the traffic light is red and the car needs to be stopped.
+
+- /current_pose: To receive current position of vehicle.
+
+- /current_velocity: To receive current velocity of the vehicle which is used to estimate the time the car needs to reach the traffic light’s stop line.
+
+
+---
 ### Traffic Light Detection
 
 For the traffic light detection part we have decided to use two classifiers. One classifier to detect the traffic lights in the image, and a second one to detect the status of the traffic light (gree/yellow/red).
