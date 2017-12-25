@@ -17,11 +17,13 @@
  - Alper Sunar alper_sunar@yahoo.com 
  
 ---
-###Waypoint Updater
+### Waypoint Updater
 
 This node publishes the next LOOKAHEADWPS number of waypoints that are closest to vehicle's current location and are ahead of the vehicle. This node also considers obstacles and traffic lights to set the velocity for each waypoint.
 
-![Waypoint updater (partial)](/documentationImages/waypoint_updater_partial.png)This node subscribes to following topics:
+![Waypoint updater (partial)](/documentationImages/waypoint_updater_partial.png)
+
+This node subscribes to following topics:
 
 - /base_waypoints: Waypoints for the whole track are published to this topic. This publication is a one-time only operation. The waypoint updater node receives these waypoints, stores them for later use and uses these points to extract the next LOOKAHEADWPS number of points ahead of the vehicle.
 
