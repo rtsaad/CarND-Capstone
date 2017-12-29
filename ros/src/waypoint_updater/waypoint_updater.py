@@ -68,7 +68,7 @@ class WaypointUpdater(object):
 
 
     def loop(self):
-        rate = rospy.Rate(20) # 50Hz
+        rate = rospy.Rate(50) # 50Hz
         
         
         while not rospy.is_shutdown():

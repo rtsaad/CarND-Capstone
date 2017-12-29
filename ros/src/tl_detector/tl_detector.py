@@ -53,7 +53,8 @@ class TLDetector(object):
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0        
-        self.lights = None
+        self.lights = None        
+        self.has_image = False
         
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -63,7 +64,22 @@ class TLDetector(object):
 
 	self.num_image = 0
 
-        rospy.spin()
+        #rospy.spin()
+        self.loop()
+
+    def loop(self):
+        # Control the number of images checked per second
+        rate = rospy.Rate(2) #2Hz
+        
+        
+        while not rospy.is_shutdown():
+            if not self.has_image:                
+                continue
+            
+            # Check for new lights
+            self.check_lights()
+
+            rate.sleep()
 
     def pose_cb(self, msg):
         self.pose = msg
@@ -95,6 +111,8 @@ class TLDetector(object):
 
         self.has_image = True
         self.camera_image = msg
+
+    def check_lights(self):
         light_wp, state = self.process_traffic_lights()
 
         '''
@@ -189,6 +207,9 @@ class TLDetector(object):
             self.prev_light_loc = None
             return False
 
+        # Reset guard variable
+        self.has_image = False
+
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 	image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
 
@@ -217,9 +238,7 @@ class TLDetector(object):
             light_position = self.get_closest_point(self.list_lights, [self.pose.pose.position.x,self.pose.pose.position.y])
 
             if light_position != -1:
-                # get closest stop position
-                #check distance
-                #dist = self.euclidean_distance(self.lights[light_position].pose.pose.position, self.pose.pose.position)
+                # get closest stop position               
                                 
                 stop_position = self.get_closest_point(self.stop_line_positions, self.list_lights[light_position])
                 if stop_position != -1:
