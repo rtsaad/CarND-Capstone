@@ -69,11 +69,12 @@ class TLDetector(object):
 
     def loop(self):
         # Control the number of images checked per second
-        rate = rospy.Rate(2) #2Hz
+        rate = rospy.Rate(3) #2Hz
         
         
         while not rospy.is_shutdown():
-            if not self.has_image:                
+            if not self.has_image:
+                rate.sleep()
                 continue
             
             # Check for new lights
