@@ -57,9 +57,11 @@ class WaypointUpdater(object):
         self.current_waypoint = None
         self.current_waypoint_index = None
         self.previous_waypoint_index = None
+        self.current_waypoint_index_adjusted = None
         self.last_stop_index = -1
-        self.velocity = None
-
+        self.velocity = None        
+        self.over = True
+        
         # Load global variables
         self.max_speed = rospy.get_param('/waypoint_loader/velocity') * KMPH_TO_MPS
 
@@ -68,7 +70,7 @@ class WaypointUpdater(object):
 
 
     def loop(self):
-        rate = rospy.Rate(50) # 50Hz
+        rate = rospy.Rate(25) # 50Hz
         
         
         while not rospy.is_shutdown():
@@ -76,6 +78,7 @@ class WaypointUpdater(object):
                 #rate.sleep()
                 continue
             # Publish waypoints ahead at every new pose
+            self.waypoints_update()
             self.waypoints_publish()
 
             rate.sleep()
@@ -90,7 +93,8 @@ class WaypointUpdater(object):
     
     def pose_cb(self, msg):
         # Save current position
-        self.current_waypoint = msg
+        self.current_waypoint = msg        
+        
 
     def waypoints_cb(self, msg):
         # Load waypoints        
@@ -109,7 +113,7 @@ class WaypointUpdater(object):
         # Set speed for waypoints before red lights and stop points.
         # Recover waypoint stop position       
 
-        stop_waypoint_index = msg.data
+        stop_waypoint_index = msg.data        
 
         # Check if its a new index point        
         if self.last_stop_index ==  stop_waypoint_index:            
@@ -145,7 +149,7 @@ class WaypointUpdater(object):
             # Compute distance to stop
             distance_full = self.distance(self.waypoints, self.current_waypoint_index, stop_waypoint_index-1)
             # Check time to brake with decelerating 0.9 m/s2 
-            if  distance_full/current_speed > current_speed/0.9 and current_speed > 2.8:
+            if  distance_full/current_speed > current_speed/0.8 and current_speed > 2.8:
                 #rospy.logwarn(" Ignore {} {}".format(current_speed/0.9, distance_full/current_speed))
                 #ignore
                 return
@@ -218,7 +222,7 @@ class WaypointUpdater(object):
         
 
         # Force to Publish new waypoints
-        self.waypoints_changed = True
+        self.waypoints_changed = True        
 
         if should_brake:
             rospy.logwarn("Red Light position detected")
@@ -229,7 +233,7 @@ class WaypointUpdater(object):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
         pass
 
-    def waypoints_publish(self):
+    def waypoints_update(self):
         if self.waypoints is None:
             # Waypoints not loaded yet, nothing to publish, ignore
             return
@@ -251,11 +255,8 @@ class WaypointUpdater(object):
                                                          self.current_waypoint.pose.orientation.y,
                                                          self.current_waypoint.pose.orientation.z,
                                                          self.current_waypoint.pose.orientation.w])[2]
-
+    
         
-        index_end = index+LOOKAHEAD_WPS
-        if index_end > len(self.waypoints):
-            index_end = len(self.waypoints)
 
         X, Y = None,None
         w = self.waypoints[index]
@@ -274,8 +275,23 @@ class WaypointUpdater(object):
 
         if angle > math.pi/4:
             index += 1
-            if index > len(self.waypoints):
-                index = 0
+
+        self.current_waypoint_index_adjusted = index
+            
+
+    def waypoints_publish(self):        
+        
+        if self.current_waypoint_index_adjusted is None:
+            return
+
+        index = self.current_waypoint_index_adjusted
+        
+        if index > len(self.waypoints):
+            index = 0
+
+        index_end = index+LOOKAHEAD_WPS
+        if index_end > len(self.waypoints):
+            index_end = len(self.waypoints)
 
         # Publish N(LOOKAHEAD_WPS) waypoints ahead
         msg_pub = Lane()
@@ -284,7 +300,7 @@ class WaypointUpdater(object):
         msg_pub.waypoints = self.waypoints[index:index_end]
         
         self.final_waypoints_pub.publish(msg_pub)
-        self.waypoints_changed = False        
+        self.waypoints_changed = False       
 
     ## Local Helpers
         
