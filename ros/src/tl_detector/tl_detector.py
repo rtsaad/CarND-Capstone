@@ -12,8 +12,7 @@ import cv2
 import yaml
 import math
 
-STATE_COUNT_THRESHOLD = 3
-SKIP_IMAGES_NUMBER = 5
+STATE_COUNT_THRESHOLD = 2
 
 class TLDetector(object):
     def __init__(self):
@@ -23,7 +22,7 @@ class TLDetector(object):
         self.pose = None
         self.waypoints = None
         self.camera_image = None
-        self.lights = []
+        self.lights = None
 
         
 
@@ -55,6 +54,7 @@ class TLDetector(object):
         self.state_count = 0        
         self.lights = None        
         self.has_image = False
+        self.over = True
         
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -73,7 +73,8 @@ class TLDetector(object):
         
         
         while not rospy.is_shutdown():
-            if not self.has_image:                
+            if not self.has_image:
+                rate.sleep()
                 continue
             
             # Check for new lights
@@ -90,7 +91,7 @@ class TLDetector(object):
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
-        self.list_lights = [[l.pose.pose.position.x, l.pose.pose.position.y] for l in self.lights]
+        self.list_lights = [[l.pose.pose.position.x, l.pose.pose.position.y] for l in self.lights]        
 
     def image_cb(self, msg):        
         """Identifies red lights in the incoming camera image and publishes the index
@@ -113,6 +114,12 @@ class TLDetector(object):
         self.camera_image = msg
 
     def check_lights(self):
+
+        if not self.over:
+            # ignore, not finished yet
+            return
+        self.over = False
+        
         light_wp, state = self.process_traffic_lights()
 
         '''
@@ -127,11 +134,13 @@ class TLDetector(object):
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
-            self.last_wp = light_wp            
+            self.last_wp = light_wp
             self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
+
+        self.over = True
 
 
     def euclidean_distance(self, position1, position2):
@@ -157,8 +166,8 @@ class TLDetector(object):
             return 0
         
         i = 0
-        index = 0
-        index_min = 1000000
+        index = -1
+        index_min = 10000000
         a = (pose.position.x, pose.position.y)
         dl = lambda a, b: math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2)
         # O(n) execution
@@ -238,23 +247,44 @@ class TLDetector(object):
             light_position = self.get_closest_point(self.list_lights, [self.pose.pose.position.x,self.pose.pose.position.y])
 
             if light_position != -1:
-                # get closest stop position               
+                #check if it is in front
+                 # Check if index point is in front of the car
+                mapp = [self.lights[light_position].pose.pose.position.x, self.lights[light_position].pose.pose.position.y, self.lights[light_position].pose.pose.position.z]
+                point = [self.pose.pose.position.x, self.pose.pose.position.y, self.pose.pose.position.z]
+                
+                theta = tf.transformations.euler_from_quaternion([self.pose.pose.orientation.x,
+                                                         self.pose.pose.orientation.y,
+                                                         self.pose.pose.orientation.z,
+                                                         self.pose.pose.orientation.w])[2]
+
+                # Check orientation
+                heading = math.atan2((mapp[1] - point[1]), (mapp[0] - point[0]))
+                
+                angle = abs(theta - heading)        
+                
+                if angle < math.pi/4:
+                    # OK, in front                   
+                    
+                    # check distance from the closest traffic light
+                    dist_l = self.euclidean_distance(self.pose.pose.position, self.lights[light_position].pose.pose.position)
+                    
+                    if dist_l < 300: #less 300 meters                    
+                        # get closest stop position
                                 
-                stop_position = self.get_closest_point(self.stop_line_positions, self.list_lights[light_position])
-                if stop_position != -1:
-                    pose = Pose()
-                    pose.position.x = self.stop_line_positions[stop_position][0]
-                    pose.position.y = self.stop_line_positions[stop_position][1]
-                    
-                    light_wp =  self.get_closest_waypoint(pose)
-                    light = light_wp                    
-                    
-            if light:
-                state = self.get_light_state(light)
-                # Uncomment to use the state from emulator
-                #state = self.lights[light_position].state
-                return light_wp, state
-        self.waypoints = None
+                        stop_position = self.get_closest_point(self.stop_line_positions, self.list_lights[light_position])
+                        if stop_position != -1:                            
+                            pose = Pose()
+                            pose.position.x = self.stop_line_positions[stop_position][0]
+                            pose.position.y = self.stop_line_positions[stop_position][1]
+                            
+                            light_wp =  self.get_closest_waypoint(pose)                            
+                            light = light_wp
+                            
+                            state = self.get_light_state(light)
+                            # Uncomment to use the state from emulator
+                            #state = self.lights[light_position].state
+                            return light_wp, state
+        
         return -1, TrafficLight.UNKNOWN
 
 if __name__ == '__main__':
