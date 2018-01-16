@@ -14,8 +14,8 @@ S_KD = 3.5
 
 # velocity pid parameters
 V_KP = 30#23#21#25#28
-V_KI = 1.3#3.5#3#1.37#1.33#1.5#1.1#3
-V_KD = 0#1.3#1#0.2#0.15#0.05#.3#.3
+V_KI = 0.685#1.3#3.5#3#1.37#1.33#1.5#1.1#3
+V_KD = 0.01#1.3#1#0.2#0.15#0.05#.3#.3
 
 ARBITRARY_LAG = 0.5
 
@@ -103,11 +103,11 @@ class Controller(object):
         # Speed Controller velocity error
         v_err = v_target - v
         T = self.pid_velocity.step(v_err,dt)
-        if v_target < 2 and v < 4:
+        if v_target < 1 and v < 4:
             T = self.velocity_model(v_err,dt)
             
         # Adjust Throttle and Brake when speed is zero
-        if v_target < 1 and v < 1:
+        if v_target < 1 and v < 2:
             throttle = 0
             brake = 1
         else:

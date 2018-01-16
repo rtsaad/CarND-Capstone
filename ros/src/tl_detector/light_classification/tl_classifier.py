@@ -18,14 +18,6 @@ class GraphClassifier():
 	self.model_output = self.classification_graph.get_tensor_by_name('model_output:0')
         self.sess = tf.Session(graph=self.classification_graph)
 
-        #self.classification_graph = tf.Graph()
-        #self.sess = tf.Session(graph=self.classification_graph)
-        #with self.classification_graph.as_default():
-        #    self.classification_graph_saver = tf.train.import_meta_graph('light_classification/traffic_light.ckpt.meta')
-        #    self.classification_graph_saver.restore(self.sess, 'light_classification/traffic_light.ckpt')
-        #    self.input_image = tf.get_default_graph().get_tensor_by_name('input_image:0')
-	#    self.model_output = tf.get_default_graph().get_tensor_by_name('model_output:0')
-
     def run(self, image):
         classes = self.sess.run(self.model_output, {self.input_image: [image]})[0]
         return classes.tolist().index(max(classes))
@@ -121,11 +113,13 @@ class TLClassifier(object):
 
             light_color = self.get_light_classification(image_resized, boxes)
             if light_color == 0:
-		#rospy.loginfo('RED LIGHT DETECTED')
+		rospy.loginfo('RED LIGHT DETECTED')
 		return TrafficLight.RED
             elif light_color == 1:
-		#rospy.loginfo('RED LIGHT DETECTED')
+		rospy.loginfo('RED LIGHT DETECTED')
 		return TrafficLight.RED
+            else:
+                rospy.loginfo('GREEN LIGHT DETECTED')
 
 	#rospy.loginfo('UNKNOWN')
         return TrafficLight.UNKNOWN

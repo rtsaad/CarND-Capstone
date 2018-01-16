@@ -70,7 +70,7 @@ class WaypointUpdater(object):
 
 
     def loop(self):
-        rate = rospy.Rate(20) # 50Hz
+        rate = rospy.Rate(25) # 50Hz
         
         
         while not rospy.is_shutdown():
@@ -197,7 +197,7 @@ class WaypointUpdater(object):
                     velocity = 0
             else:
                 # Accelerating
-                velocity = current_speed + diff_velocity
+                velocity = local_max_speed #current_speed + diff_velocity
                 if velocity > self.max_speed:
                     velocity = self.max_speed
                 elif velocity < 1.5:
@@ -212,8 +212,8 @@ class WaypointUpdater(object):
             while not over:
                 wp_speed = self.get_waypoint_velocity(self.original_waypoints[index])
                 wp_current_speed = self.get_waypoint_velocity(self.waypoints[index])
-                if wp_current_speed < wp_speed:
-                    self.set_waypoint_velocity(self.waypoints, index, wp_speed)
+                if wp_current_speed < local_max_speed:# wp_speed:
+                    self.set_waypoint_velocity(self.waypoints, index, local_max_speed) #wp_speed)
                     #rospy.logwarn("Set speed {} {}".format(index, wp_speed))
                     index +=1                    
                 else:
